@@ -25,19 +25,12 @@ export const Route = createFileRoute("/intelligence")({
 
 function IntelligencePage() {
   return (
-    <div className="min-h-screen bg-background text-on-surface">
-      <AppShellless />
-    </div>
-  );
-}
-
-function AppShellless() {
-  return (
     <AppShell bare>
       <div className="grid flex-1 grid-cols-1 overflow-hidden xl:grid-cols-12">
         <section className="flex h-full flex-col border-r border-outline-variant bg-background xl:col-span-8">
           <div className="flex-1 space-y-12 overflow-y-auto px-6 py-8">
             <div className="mx-auto max-w-3xl">
+              <h1 className="sr-only">POULTRY_AI Intelligence OS</h1>
               <div className="mb-8 flex items-center gap-2">
                 <span className="border border-outline-variant bg-surface-container-high px-2 py-1 font-label-caps text-[9px] uppercase tracking-widest text-primary">
                   System Ready
