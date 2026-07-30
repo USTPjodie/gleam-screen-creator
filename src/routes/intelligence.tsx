@@ -212,7 +212,7 @@ function IntelligencePage() {
                 <div className="flex items-center gap-3 pl-11">
                   <span className="h-2 w-2 animate-pulse rounded-full bg-accent-cyan" />
                   <span className="font-data-md text-data-md uppercase text-on-surface-variant">
-                    KIMI_K3 analyzing telemetry...
+                    LLAMA_3.3 analyzing telemetry...
                   </span>
                 </div>
               )}
@@ -339,7 +339,7 @@ function IntelligencePage() {
                 <div className="flex items-center gap-2 opacity-60">
                   <Icon name="notifications_active" size={14} />
                   <span className="font-label-caps text-[10px] uppercase tracking-widest">
-                    Feedback Alerts: KIMI_K3
+                    Feedback Alerts: LLAMA_3.3
                   </span>
                 </div>
                 <button

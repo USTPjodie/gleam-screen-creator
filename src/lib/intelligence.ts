@@ -3,16 +3,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 /**
- * Kimi-K3 integration for the Intelligence page.
- *
- * Requested model `inference-optimization/Kimi-K3-0.40B` is a tiny CI test
- * checkpoint (custom_code, feature-extraction) with no hosted inference
- * endpoint, so we route to its production base model `moonshotai/Kimi-K3`
- * through the Hugging Face Inference Providers router instead.
+ * Intelligence engine for the Intelligence page — served by Groq's free
+ * OpenAI-compatible API (default model: Llama 3.3 70B). Groq's free tier
+ * (~14,400 req/day) replaces the earlier moonshotai/Kimi-K3 route through the
+ * Hugging Face Inference Providers router, which billed per token.
  */
-const HF_CHAT_URL = "https://router.huggingface.co/v1/chat/completions";
-const DEFAULT_MODEL = "moonshotai/Kimi-K3";
-const REQUEST_TIMEOUT_MS = 90_000;
+const CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+const DEFAULT_MODEL = "llama-3.3-70b-versatile";
+const REQUEST_TIMEOUT_MS = 60_000;
 
 /** Telemetry snapshot mirroring the dashboard mock data — grounding context for the model. */
 const FARM_SNAPSHOT = `FARM TELEMETRY SNAPSHOT (POULTRY_AI FARM_OS v2.4.0)
@@ -42,33 +40,33 @@ type ChatMessage = { role: "system" | "user"; content: string };
  * Vite does not copy .env into process.env for SSR modules, so fall back to
  * parsing the project .env file once at module load.
  */
-function loadHfToken(): string | undefined {
-  if (process.env.HF_TOKEN) return process.env.HF_TOKEN;
+function loadApiKey(): string | undefined {
+  if (process.env.GROQ_API_KEY) return process.env.GROQ_API_KEY;
   try {
     const line = readFileSync(".env", "utf8")
       .split(/\r?\n/)
-      .find((l) => l.startsWith("HF_TOKEN="));
-    const value = line?.slice("HF_TOKEN=".length).trim().replace(/^["']|["']$/g, "");
+      .find((l) => l.startsWith("GROQ_API_KEY="));
+    const value = line?.slice("GROQ_API_KEY=".length).trim().replace(/^["']|["']$/g, "");
     return value || undefined;
   } catch {
     return undefined;
   }
 }
 
-async function callKimi(
+async function callEngine(
   messages: ChatMessage[],
   maxTokens: number,
 ): Promise<{ content: string; latencyMs: number; model: string }> {
-  const token = loadHfToken();
+  const token = loadApiKey();
   if (!token) {
     throw new Error(
-      "HF_TOKEN is not configured. Add HF_TOKEN=hf_... to the .env file (see .env.example) and restart the dev server.",
+      "GROQ_API_KEY is not configured. Add GROQ_API_KEY=gsk_... to the .env file (see .env.example) and restart the dev server.",
     );
   }
 
-  const model = process.env.HF_MODEL ?? DEFAULT_MODEL;
+  const model = process.env.GROQ_MODEL ?? DEFAULT_MODEL;
   const started = Date.now();
-  const res = await fetch(HF_CHAT_URL, {
+  const res = await fetch(CHAT_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -85,18 +83,19 @@ async function callKimi(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`Kimi-K3 request failed (HTTP ${res.status}): ${body.slice(0, 300)}`);
+    throw new Error(`Intelligence engine request failed (HTTP ${res.status}): ${body.slice(0, 300)}`);
   }
 
   const json = (await res.json()) as {
     model?: string;
     choices?: { message?: { content?: string; reasoning_content?: string } }[];
   };
-  // Kimi-K3 is a reasoning model: the final answer lands in `content` after the
-  // reasoning budget; fall back to `reasoning_content` if content came back empty.
+  // Reasoning models (e.g. gpt-oss via GROQ_MODEL override) place the final
+  // answer in `content` after the reasoning budget; fall back to
+  // `reasoning_content` if content came back empty.
   const message = json.choices?.[0]?.message;
   const content = message?.content?.trim() || message?.reasoning_content?.trim();
-  if (!content) throw new Error("Kimi-K3 returned an empty response.");
+  if (!content) throw new Error("The model returned an empty response.");
 
   return { content, latencyMs: Date.now() - started, model: json.model ?? model };
 }
@@ -105,7 +104,7 @@ async function callKimi(
 export const queryIntelligence = createServerFn({ method: "POST" })
   .validator(z.object({ question: z.string().trim().min(1).max(2000) }))
   .handler(async ({ data }) => {
-    const { content, latencyMs, model } = await callKimi(
+    const { content, latencyMs, model } = await callEngine(
       [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: data.question },
@@ -136,14 +135,14 @@ function extractJsonArray(raw: string): unknown {
   const start = raw.indexOf("[");
   const end = raw.lastIndexOf("]");
   if (start === -1 || end <= start) {
-    throw new Error("Kimi-K3 response did not contain a JSON array.");
+    throw new Error("The model response did not contain a JSON array.");
   }
   return JSON.parse(raw.slice(start, end + 1));
 }
 
 /** Feedback alerts — model-generated triage of the current telemetry. */
 export const fetchFeedbackAlerts = createServerFn({ method: "POST" }).handler(async () => {
-  const { content, latencyMs, model } = await callKimi(
+  const { content, latencyMs, model } = await callEngine(
     [{ role: "user", content: ALERTS_PROMPT }],
     2500,
   );
