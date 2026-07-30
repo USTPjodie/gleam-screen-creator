@@ -1,6 +1,13 @@
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
+import {
+  fetchFeedbackAlerts,
+  queryIntelligence,
+  type FeedbackAlert,
+} from "@/lib/intelligence";
 
 const TITLE = "Intelligence OS | POULTRY_AI Query Engine";
 const DESC =
@@ -23,7 +30,70 @@ export const Route = createFileRoute("/intelligence")({
   component: IntelligencePage,
 });
 
+type Turn = {
+  role: "operator" | "engine";
+  text: string;
+  latencyMs?: number;
+  model?: string;
+  error?: boolean;
+};
+
+const SEVERITY_STYLES: Record<
+  FeedbackAlert["severity"],
+  { icon: string; text: string; border: string }
+> = {
+  critical: { icon: "error", text: "text-error", border: "border-l-error" },
+  warning: { icon: "warning", text: "text-accent-amber", border: "border-l-accent-amber" },
+  nominal: { icon: "check_circle", text: "text-accent-teal", border: "border-l-accent-teal" },
+};
+
 function IntelligencePage() {
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [input, setInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const ask = useMutation({
+    mutationFn: (question: string) => queryIntelligence({ data: { question } }),
+    onMutate: (question) => {
+      setTurns((prev) => [...prev, { role: "operator", text: question }]);
+    },
+    onSuccess: (res) => {
+      setTurns((prev) => [
+        ...prev,
+        { role: "engine", text: res.answer, latencyMs: res.latencyMs, model: res.model },
+      ]);
+    },
+    onError: (err) => {
+      setTurns((prev) => [
+        ...prev,
+        {
+          role: "engine",
+          text: err instanceof Error ? err.message : "Intelligence engine request failed.",
+          error: true,
+        },
+      ]);
+    },
+  });
+
+  const alertsQuery = useQuery({
+    queryKey: ["feedback-alerts"],
+    queryFn: () => fetchFeedbackAlerts(),
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const submitQuestion = (raw: string) => {
+    const question = raw.trim();
+    if (!question || ask.isPending) return;
+    setInput("");
+    ask.mutate(question);
+  };
+
+  useEffect(() => {
+    if (turns.length > 0) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [turns, ask.isPending]);
+
   return (
     <AppShell bare>
       <div className="grid flex-1 grid-cols-1 overflow-hidden xl:grid-cols-12">
@@ -56,10 +126,10 @@ function IntelligencePage() {
 
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded bg-primary">
+                  <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-cyan">
                     <Icon name="psychology" size={16} filled className="text-on-primary" />
                   </div>
-                  <span className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
+                  <span className="font-label-caps text-label-caps uppercase tracking-widest text-accent-cyan">
                     Intelligence Engine
                   </span>
                 </div>
@@ -98,6 +168,55 @@ function IntelligencePage() {
                   </div>
                 </div>
               </div>
+
+              {turns.map((turn, i) =>
+                turn.role === "operator" ? (
+                  <div key={i} className="flex flex-col items-end gap-2">
+                    <div className="max-w-[85%] rounded-lg border border-outline-variant bg-surface-container-high px-4 py-3">
+                      <p className="font-body-md text-body-md text-primary">{turn.text}</p>
+                    </div>
+                    <span className="font-label-caps text-[10px] uppercase text-on-surface-variant">
+                      Operator 01
+                    </span>
+                  </div>
+                ) : (
+                  <div key={i} className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-accent-cyan">
+                        <Icon name="psychology" size={16} filled className="text-on-primary" />
+                      </div>
+                      <span className="font-label-caps text-label-caps uppercase tracking-widest text-accent-cyan">
+                        Intelligence Engine
+                      </span>
+                    </div>
+                    <div className="max-w-[90%] space-y-3 pl-11">
+                      <p
+                        className={`whitespace-pre-wrap font-body-md text-body-md leading-relaxed ${
+                          turn.error ? "text-error" : "text-on-surface-variant"
+                        }`}
+                      >
+                        {turn.text}
+                      </p>
+                      {turn.latencyMs != null && (
+                        <div className="flex gap-4 font-data-md text-[10px] uppercase text-on-surface-variant opacity-60">
+                          <span>MODEL: {turn.model}</span>
+                          <span>LATENCY: {(turn.latencyMs / 1000).toFixed(1)}s</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ),
+              )}
+
+              {ask.isPending && (
+                <div className="flex items-center gap-3 pl-11">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-accent-cyan" />
+                  <span className="font-data-md text-data-md uppercase text-on-surface-variant">
+                    KIMI_K3 analyzing telemetry...
+                  </span>
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
 
             <div className="mx-auto max-w-3xl border-t border-outline-variant pt-16">
@@ -159,24 +278,45 @@ function IntelligencePage() {
           </div>
 
           <div className="border-t border-outline-variant bg-background p-6">
-            <div className="relative mx-auto max-w-3xl">
+            <form
+              className="relative mx-auto max-w-3xl"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitQuestion(input);
+              }}
+            >
               <input
-                className="w-full border border-outline-variant bg-surface-container-lowest px-5 py-4 pr-16 font-body-md text-primary transition-all placeholder:text-on-surface-variant placeholder:opacity-30 focus:border-primary focus:outline-none"
+                className="w-full border border-outline-variant bg-surface-container-lowest px-5 py-4 pr-16 font-body-md text-primary transition-all placeholder:text-on-surface-variant placeholder:opacity-30 focus:border-primary focus:outline-none disabled:opacity-50"
                 placeholder="Query Intelligence Engine..."
                 type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={ask.isPending}
               />
-              <button className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-primary transition-transform hover:scale-110">
+              <button
+                type="submit"
+                disabled={ask.isPending || input.trim().length === 0}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-primary transition-transform hover:scale-110 disabled:opacity-40"
+              >
                 <Icon name="send" />
               </button>
-            </div>
+            </form>
             <div className="mx-auto mt-2 flex max-w-3xl gap-4">
               <span className="font-data-md text-[10px] text-on-surface-variant opacity-40">
                 SUGGESTIONS:
               </span>
-              <button className="font-data-md text-[10px] uppercase text-on-surface-variant transition-colors hover:text-primary">
+              <button
+                onClick={() => submitQuestion("Analyse House 04 mortality risk for the next 72 hours.")}
+                disabled={ask.isPending}
+                className="font-data-md text-[10px] uppercase text-on-surface-variant transition-colors hover:text-primary disabled:opacity-40"
+              >
                 Analyse House 04 Mortality
               </button>
-              <button className="font-data-md text-[10px] uppercase text-on-surface-variant transition-colors hover:text-primary">
+              <button
+                onClick={() => submitQuestion("Predict the feed requirement for Houses 01-04 this week.")}
+                disabled={ask.isPending}
+                className="font-data-md text-[10px] uppercase text-on-surface-variant transition-colors hover:text-primary disabled:opacity-40"
+              >
                 Predict Feed Requirement
               </button>
             </div>
@@ -186,7 +326,7 @@ function IntelligencePage() {
         <aside className="flex h-full flex-col bg-surface-container-lowest xl:col-span-4">
           <div className="flex items-center justify-between border-b border-outline-variant p-6">
             <div className="flex items-center gap-2">
-              <Icon name="hub" size={16} className="text-primary" />
+              <Icon name="hub" size={16} className="text-accent-cyan" />
               <h3 className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
                 Data Grounding
               </h3>
@@ -194,6 +334,77 @@ function IntelligencePage() {
             <span className="font-data-md text-data-md text-on-surface-variant">ID: RAG-8821</span>
           </div>
           <div className="flex-1 space-y-8 overflow-y-auto p-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 opacity-60">
+                  <Icon name="notifications_active" size={14} />
+                  <span className="font-label-caps text-[10px] uppercase tracking-widest">
+                    Feedback Alerts: KIMI_K3
+                  </span>
+                </div>
+                <button
+                  onClick={() => alertsQuery.refetch()}
+                  disabled={alertsQuery.isFetching}
+                  className="p-1 text-on-surface-variant transition-colors hover:text-on-surface disabled:opacity-40"
+                  title="Re-run analysis"
+                >
+                  <Icon
+                    name="refresh"
+                    size={14}
+                    className={alertsQuery.isFetching ? "animate-spin" : ""}
+                  />
+                </button>
+              </div>
+              {alertsQuery.isFetching ? (
+                <div className="flex items-center gap-3 border border-outline-variant bg-background p-4">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-accent-cyan" />
+                  <span className="font-data-md text-data-md uppercase text-on-surface-variant">
+                    Running telemetry triage...
+                  </span>
+                </div>
+              ) : alertsQuery.isError ? (
+                <div className="border border-outline-variant border-l-2 border-l-error bg-background p-4">
+                  <p className="font-data-md text-data-md leading-snug text-error">
+                    {alertsQuery.error instanceof Error
+                      ? alertsQuery.error.message
+                      : "Alert analysis failed."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alertsQuery.data?.alerts.map((alert) => {
+                    const style = SEVERITY_STYLES[alert.severity];
+                    return (
+                      <div
+                        key={alert.title}
+                        className={`border border-outline-variant border-l-2 ${style.border} bg-background p-3`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon name={style.icon} size={14} className={style.text} />
+                          <span
+                            className={`font-label-caps text-[10px] uppercase tracking-wider ${style.text}`}
+                          >
+                            {alert.title}
+                          </span>
+                        </div>
+                        <p className="mt-2 font-body-md text-[12px] leading-snug text-on-surface-variant">
+                          {alert.detail}
+                        </p>
+                        <p className="mt-1 font-data-md text-[10px] uppercase leading-snug text-primary opacity-80">
+                          ACTION: {alert.action}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  {alertsQuery.data && (
+                    <p className="font-data-md text-[10px] uppercase text-on-surface-variant opacity-50">
+                      MODEL: {alertsQuery.data.model} | {alertsQuery.data.latencyMs}ms
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-4">
               <div className="flex items-center gap-2 opacity-60">
                 <Icon name="sensors" size={14} />
@@ -264,7 +475,7 @@ function IntelligencePage() {
                   Reference: Biological Standards
                 </span>
               </div>
-              <div className="border-l-2 border-primary bg-surface-container p-4">
+              <div className="border-l-2 border-accent-cyan bg-surface-container p-4">
                 <p className="font-body-md text-body-md italic text-on-surface-variant">
                   "Ammonia levels above 20ppm cause respiratory irritation in broiler populations,
                   leading to reduced movement and huddling behavior."

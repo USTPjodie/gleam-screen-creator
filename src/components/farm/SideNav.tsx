@@ -63,7 +63,7 @@ export function SideNav() {
             SYSTEM_RESOURCE
           </div>
           <div className="h-1 overflow-hidden rounded bg-surface-container">
-            <div className="h-full w-[34%] bg-primary" />
+            <div className="h-full w-[34%] bg-accent-cyan" />
           </div>
           <div className="mt-2 flex justify-between">
             <span className="font-data-md text-[10px] text-on-surface-variant">CPU: 34%</span>

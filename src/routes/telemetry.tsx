@@ -59,8 +59,10 @@ function TelemetryPage() {
               </h2>
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 border border-primary" />
-                  <span className="font-data-md text-data-md text-primary">Actual Avg: 2,452g</span>
+                  <div className="h-3 w-3 border border-accent-cyan" />
+                  <span className="font-data-md text-data-md text-accent-cyan">
+                    Actual Avg: 2,452g
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 border border-outline-variant bg-outline-variant opacity-30" />
@@ -81,33 +83,37 @@ function TelemetryPage() {
           </div>
           <div className="pointer-events-none absolute inset-x-gutter bottom-gutter top-24 grid-bg opacity-20" />
           <div className="relative mt-4 h-[300px] w-full">
-            <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 1000 300">
+            <svg
+              className="h-full w-full text-accent-cyan"
+              preserveAspectRatio="none"
+              viewBox="0 0 1000 300"
+            >
               <path
                 d="M0 250 Q 250 240, 500 150 T 1000 50"
+                className="stroke-outline"
                 fill="none"
-                stroke="#444749"
                 strokeDasharray="4 2"
                 strokeWidth="1.5"
               />
               <path
                 d="M0 260 Q 250 250, 500 140 T 1000 40"
                 fill="none"
-                stroke="#ffffff"
+                stroke="currentColor"
                 strokeWidth="2"
               />
               <path
                 d="M0 260 Q 250 250, 500 140 T 1000 40 L 1000 300 L 0 300 Z"
                 fill="url(#growthGrad)"
-                opacity="0.05"
+                opacity="0.2"
               />
               <defs>
                 <linearGradient id="growthGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#ffffff" />
+                  <stop offset="0%" stopColor="currentColor" />
                   <stop offset="100%" stopColor="transparent" />
                 </linearGradient>
               </defs>
-              <circle cx="500" cy="140" fill="#ffffff" r="4" />
-              <circle cx="1000" cy="40" fill="#ffffff" r="4" />
+              <circle cx="500" cy="140" fill="currentColor" r="4" />
+              <circle cx="1000" cy="40" fill="currentColor" r="4" />
             </svg>
             <div className="absolute bottom-0 left-0 flex w-full translate-y-full justify-between pt-2 font-data-md text-[10px] text-outline">
               <span>DAY 01</span>
@@ -135,9 +141,9 @@ function TelemetryPage() {
               </h2>
               <div className="space-y-6">
                 {[
-                  ["GROWTH VARIANCE", "+1.2%", "72%", "TRENDING_OPTIMAL"],
-                  ["ESTIMATION CONFIDENCE", "94%", "94%", "SENSOR_STABLE"],
-                ].map(([label, value, width, note]) => (
+                  ["GROWTH VARIANCE", "+1.2%", "72%", "TRENDING_OPTIMAL", "bg-accent-cyan"],
+                  ["ESTIMATION CONFIDENCE", "94%", "94%", "SENSOR_STABLE", "bg-accent-amber"],
+                ].map(([label, value, width, note, barClass]) => (
                   <div key={label}>
                     <div className="mb-1 flex items-end justify-between">
                       <span className="font-label-caps text-[10px] text-on-surface-variant">
@@ -146,7 +152,7 @@ function TelemetryPage() {
                       <span className="font-data-lg text-data-lg text-primary">{value}</span>
                     </div>
                     <div className="h-1 w-full bg-surface-container-high">
-                      <div className="h-full bg-primary" style={{ width }} />
+                      <div className={`h-full ${barClass}`} style={{ width }} />
                     </div>
                     <div className="mt-1 text-right font-data-md text-[10px] text-outline">
                       {note}
@@ -217,12 +223,12 @@ function TelemetryPage() {
                     <td className="px-gutter py-3 text-right">
                       <span
                         className={`mr-2 inline-block h-2 w-2 rounded-full ${
-                          status === "NOMINAL" ? "bg-emerald-500" : "bg-amber-500"
+                          status === "NOMINAL" ? "bg-accent-teal" : "bg-accent-amber"
                         }`}
                       />
                       <span
                         className={`font-label-caps text-[10px] ${
-                          status === "NOMINAL" ? "text-emerald-500" : "text-amber-500"
+                          status === "NOMINAL" ? "text-accent-teal" : "text-accent-amber"
                         }`}
                       >
                         {status}
@@ -243,17 +249,17 @@ function TelemetryPage() {
             <span className="font-data-md text-[10px] text-outline">REF: SN_82910_A</span>
           </div>
           <div className="relative flex aspect-video items-center justify-center overflow-hidden border border-outline-variant bg-background grid-bg">
-            <div className="relative flex h-64 w-48 flex-col items-center justify-center rounded-full border-2 border-primary/20 backdrop-blur-[2px]">
+            <div className="relative flex h-64 w-48 flex-col items-center justify-center rounded-full border-2 border-accent-cyan/20 backdrop-blur-[2px]">
               <div className="relative h-full w-full">
-                <div className="absolute -right-12 -top-4 flex flex-col border-l border-primary pl-2">
+                <div className="absolute -right-12 -top-4 flex flex-col border-l border-accent-cyan pl-2">
                   <span className="font-label-caps text-[9px] text-outline">BREAST_WIDTH</span>
                   <span className="font-data-md text-[11px]">114.2mm</span>
                 </div>
-                <div className="absolute -left-16 top-1/2 flex flex-col border-r border-primary pr-2 text-right">
+                <div className="absolute -left-16 top-1/2 flex flex-col border-r border-accent-cyan pr-2 text-right">
                   <span className="font-label-caps text-[9px] text-outline">TOTAL_LENGTH</span>
                   <span className="font-data-md text-[11px]">342.5mm</span>
                 </div>
-                <div className="absolute -bottom-4 right-1/4 flex flex-col border-t border-primary pt-2">
+                <div className="absolute -bottom-4 right-1/4 flex flex-col border-t border-accent-cyan pt-2">
                   <span className="font-label-caps text-[9px] text-outline">DEPTH_Z</span>
                   <span className="font-data-md text-[11px]">182.1mm</span>
                 </div>
@@ -264,8 +270,10 @@ function TelemetryPage() {
               </div>
             </div>
             <div className="absolute left-4 top-4 flex gap-2">
-              <div className="h-2 w-2 animate-pulse bg-primary" />
-              <span className="font-label-caps text-[10px] text-primary">LIDAR_SCANNING...</span>
+              <div className="h-2 w-2 animate-pulse bg-accent-cyan" />
+              <span className="font-label-caps text-[10px] text-accent-cyan">
+                LIDAR_SCANNING...
+              </span>
             </div>
           </div>
           <div className="mt-4 space-y-2">
@@ -279,7 +287,7 @@ function TelemetryPage() {
             </div>
             <div className="flex justify-between text-[11px]">
               <span className="font-label-caps uppercase text-outline">Estimated Precision</span>
-              <span className="font-data-md text-emerald-500">± 1.5%</span>
+              <span className="font-data-md text-accent-teal">± 1.5%</span>
             </div>
           </div>
           <button className="mt-4 w-full border border-outline-variant py-2 font-label-caps text-[11px] uppercase transition-colors hover:bg-surface-container-high">

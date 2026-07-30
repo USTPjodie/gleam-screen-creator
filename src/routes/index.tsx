@@ -22,7 +22,7 @@ const metrics = [
   {
     label: "AVG_WEIGHT (G)",
     delta: "+1.2%",
-    deltaClass: "text-emerald-400",
+    deltaClass: "text-accent-teal",
     value: "1,482.5",
     sub: "STD_DEV: 12g",
     path: "M0,30 L30,28 L60,32 L90,25 L120,20 L150,22 L180,15 L210,10 L240,12 L270,8 L300,5",
@@ -30,7 +30,7 @@ const metrics = [
   {
     label: "WATER_INTAKE (L/H)",
     delta: "NOMINAL",
-    deltaClass: "text-primary",
+    deltaClass: "text-accent-teal",
     value: "2,140.0",
     sub: "EST_24H: 52k",
     path: "M0,20 L30,22 L60,20 L90,21 L120,20 L150,19 L180,21 L210,20 L240,22 L270,20 L300,21",
@@ -38,7 +38,7 @@ const metrics = [
   {
     label: "FEED_CONVERSION (FCR)",
     delta: "-0.02",
-    deltaClass: "text-emerald-400",
+    deltaClass: "text-accent-teal",
     value: "1.34",
     sub: "TARGET: 1.36",
     path: "M0,10 L30,12 L60,11 L90,14 L120,13 L150,16 L180,18 L210,22 L240,24 L270,22 L300,25",
@@ -58,18 +58,18 @@ function Index() {
   return (
     <AppShell>
       <section className="mb-stack-lg">
-        <div className="clinical-card relative overflow-hidden border-l-4 border-l-primary p-6">
+        <div className="clinical-card relative overflow-hidden border-l-4 border-l-accent-cyan p-6">
           <div className="absolute right-0 top-0 p-4 opacity-10">
             <Icon name="neurology" size={64} filled />
           </div>
           <div className="mb-2 flex items-center gap-2 font-label-caps text-label-caps text-on-surface-variant">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+            <span className="h-2 w-2 animate-pulse rounded-full bg-accent-teal" />
             EXECUTIVE_SUMMARY_ENGINE (LLM_v4.2)
           </div>
           <h1 className="max-w-4xl font-headline-sm text-headline-sm leading-relaxed text-on-surface">
-            Flock status is <span className="font-bold text-primary">Optimal</span>. No behavioral
+            Flock status is <span className="font-bold text-accent-cyan">Optimal</span>. No behavioral
             anomalies detected in last 12 hours. Weight gain is{" "}
-            <span className="text-primary">+2%</span> above breed target. Environmental parameters
+            <span className="text-accent-cyan">+2%</span> above breed target. Environmental parameters
             in{" "}
             <span className="underline decoration-outline-variant underline-offset-4">
               House 01-04
@@ -106,7 +106,7 @@ function Index() {
             </div>
             <div className="flex gap-4">
               <div className="flex items-center gap-2">
-                <span className="h-0.5 w-3 bg-primary" />
+                <span className="h-0.5 w-3 bg-accent-cyan" />
                 <span className="font-label-caps text-[10px] text-on-surface-variant">ACTIVE</span>
               </div>
               <div className="flex items-center gap-2">
@@ -120,21 +120,25 @@ function Index() {
           <div className="relative h-[320px] w-full">
             <div className="pointer-events-none absolute inset-0 flex flex-col justify-between opacity-20">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="w-full border-t border-outline-variant" />
+                <div key={i} className="w-full border-t border-outline" />
               ))}
             </div>
-            <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 800 320">
+            <svg
+              className="h-full w-full text-accent-cyan"
+              preserveAspectRatio="none"
+              viewBox="0 0 800 320"
+            >
               <path
                 d="M0,160 Q100,150 200,170 T400,165 T600,155 T800,160"
+                className="stroke-outline"
                 fill="none"
-                stroke="#444749"
                 strokeDasharray="4,2"
                 strokeWidth="1.5"
               />
               <path
                 d="M0,180 L50,170 L100,190 L150,160 L200,150 L250,155 L300,140 L350,145 L400,130 L450,135 L500,120 L550,125 L600,110 L650,115 L700,105 L750,110 L800,100"
                 fill="none"
-                stroke="#ffffff"
+                stroke="currentColor"
                 strokeWidth="2"
               />
               <path
@@ -143,8 +147,8 @@ function Index() {
               />
               <defs>
                 <linearGradient id="chartGrad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="white" stopOpacity="0.08" />
-                  <stop offset="100%" stopColor="white" stopOpacity="0" />
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
                 </linearGradient>
               </defs>
             </svg>
@@ -228,7 +232,7 @@ function Index() {
             </div>
             <div className="h-10 w-full">
               <svg className="h-full w-full overflow-visible" viewBox="0 0 300 40">
-                <path d={m.path} fill="none" stroke="#ffffff" strokeWidth="1.5" />
+                <path d={m.path} className="stroke-accent-cyan" fill="none" strokeWidth="1.5" />
               </svg>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Icon } from "./Icon";
+import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
   { to: "/", label: "DASHBOARD" },
@@ -46,13 +47,17 @@ export function TopNav() {
           />
         </div>
         <div className="flex gap-2">
-          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest">
+          <ThemeToggle />
+          <button className="relative p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="notifications" />
+            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 font-data-md text-[9px] leading-none text-on-error">
+              3
+            </span>
           </button>
-          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest">
+          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="apps" />
           </button>
-          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest">
+          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="account_circle" />
           </button>
         </div>

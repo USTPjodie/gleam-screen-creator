@@ -147,44 +147,160 @@
  * POULTRY_AI / FARM_OS clinical design system
  * ============================================================ */
 
-@theme {
-  --color-background: #131313;
-  --color-foreground: #e5e2e1;
-  --color-surface: #131313;
-  --color-surface-dim: #131313;
-  --color-surface-bright: #3a3939;
-  --color-surface-variant: #353434;
-  --color-surface-tint: #c5c7c8;
-  --color-surface-container: #201f1f;
-  --color-surface-container-low: #1c1b1b;
-  --color-surface-container-lowest: #0e0e0e;
-  --color-surface-container-high: #2a2a2a;
-  --color-surface-container-highest: #353434;
-  --color-on-background: #e5e2e1;
-  --color-on-surface: #e5e2e1;
-  --color-on-surface-variant: #c4c7c8;
-  --color-inverse-surface: #e5e2e1;
-  --color-inverse-on-surface: #313030;
-  --color-primary: #ffffff;
-  --color-on-primary: #2e3132;
-  --color-primary-container: #e1e3e4;
-  --color-on-primary-container: #626566;
-  --color-inverse-primary: #5c5f60;
-  --color-secondary: #c7c6c8;
-  --color-on-secondary: #2f3032;
-  --color-secondary-container: #464749;
-  --color-on-secondary-container: #b5b5b7;
-  --color-tertiary: #ffffff;
-  --color-on-tertiary: #362f2d;
-  --color-tertiary-container: #ece0dd;
-  --color-on-tertiary-container: #6b6260;
-  --color-error: #ffb4ab;
-  --color-on-error: #690005;
-  --color-error-container: #93000a;
-  --color-on-error-container: #ffdad6;
-  --color-outline: #8e9193;
-  --color-outline-variant: #444749;
+@theme inline {
+  --color-background: var(--farm-background);
+  --color-foreground: var(--farm-foreground);
+  --color-surface: var(--farm-surface);
+  --color-surface-dim: var(--farm-surface-dim);
+  --color-surface-bright: var(--farm-surface-bright);
+  --color-surface-variant: var(--farm-surface-variant);
+  --color-surface-tint: var(--farm-surface-tint);
+  --color-surface-container: var(--farm-surface-container);
+  --color-surface-container-low: var(--farm-surface-container-low);
+  --color-surface-container-lowest: var(--farm-surface-container-lowest);
+  --color-surface-container-high: var(--farm-surface-container-high);
+  --color-surface-container-highest: var(--farm-surface-container-highest);
+  --color-on-background: var(--farm-on-background);
+  --color-on-surface: var(--farm-on-surface);
+  --color-on-surface-variant: var(--farm-on-surface-variant);
+  --color-inverse-surface: var(--farm-inverse-surface);
+  --color-inverse-on-surface: var(--farm-inverse-on-surface);
+  --color-primary: var(--farm-primary);
+  --color-on-primary: var(--farm-on-primary);
+  --color-primary-container: var(--farm-primary-container);
+  --color-on-primary-container: var(--farm-on-primary-container);
+  --color-inverse-primary: var(--farm-inverse-primary);
+  --color-secondary: var(--farm-secondary);
+  --color-on-secondary: var(--farm-on-secondary);
+  --color-secondary-container: var(--farm-secondary-container);
+  --color-on-secondary-container: var(--farm-on-secondary-container);
+  --color-tertiary: var(--farm-tertiary);
+  --color-on-tertiary: var(--farm-on-tertiary);
+  --color-tertiary-container: var(--farm-tertiary-container);
+  --color-on-tertiary-container: var(--farm-on-tertiary-container);
+  --color-error: var(--farm-error);
+  --color-on-error: var(--farm-on-error);
+  --color-error-container: var(--farm-error-container);
+  --color-on-error-container: var(--farm-on-error-container);
+  --color-outline: var(--farm-outline);
+  --color-outline-variant: var(--farm-outline-variant);
+  --color-accent-cyan: var(--farm-accent-cyan);
+  --color-accent-amber: var(--farm-accent-amber);
+  --color-accent-yellow: var(--farm-accent-yellow);
+  --color-accent-blue: var(--farm-accent-blue);
+  --color-accent-pink: var(--farm-accent-pink);
+  --color-accent-teal: var(--farm-accent-teal);
+}
 
+/* Light palette (default) */
+:root {
+  color-scheme: light;
+  --farm-background: #f6f6f6;
+  --farm-foreground: #1a1c1c;
+  --farm-surface: #f6f6f6;
+  --farm-surface-dim: #d7d7d7;
+  --farm-surface-bright: #f6f6f6;
+  --farm-surface-variant: #e2e2e2;
+  --farm-surface-tint: #5c5f60;
+  --farm-surface-container: #ebebeb;
+  --farm-surface-container-low: #f0f0f0;
+  --farm-surface-container-lowest: #ffffff;
+  --farm-surface-container-high: #e5e5e5;
+  --farm-surface-container-highest: #dfdfdf;
+  --farm-on-background: #1a1c1c;
+  --farm-on-surface: #1a1c1c;
+  --farm-on-surface-variant: #444749;
+  --farm-inverse-surface: #313030;
+  --farm-inverse-on-surface: #f3f0ef;
+  --farm-primary: #1a1c1c;
+  --farm-on-primary: #ffffff;
+  --farm-primary-container: #e1e3e4;
+  --farm-on-primary-container: #454849;
+  --farm-inverse-primary: #c6c6c7;
+  --farm-secondary: #5c5f5f;
+  --farm-on-secondary: #ffffff;
+  --farm-secondary-container: #e1e3e4;
+  --farm-on-secondary-container: #454849;
+  --farm-tertiary: #1a1c1c;
+  --farm-on-tertiary: #ffffff;
+  --farm-tertiary-container: #ece0dd;
+  --farm-on-tertiary-container: #52443f;
+  --farm-error: #ba1a1a;
+  --farm-on-error: #ffffff;
+  --farm-error-container: #ffdad6;
+  --farm-on-error-container: #93000a;
+  --farm-outline: #74777a;
+  --farm-outline-variant: #c4c7c8;
+  --farm-accent-cyan: #0891b2;
+  --farm-accent-amber: #d97706;
+  --farm-accent-yellow: #a16207;
+  --farm-accent-blue: #2563eb;
+  --farm-accent-pink: #db2777;
+  --farm-accent-teal: #0d9488;
+
+  --clinical-card-bg: #ffffff;
+  --clinical-card-border: #e4e4e4;
+  --clinical-card-border-hover: #c4c7c8;
+  --grid-line-subtle: #ececec;
+  --grid-line: #e0e2e3;
+  --scrollbar-thumb: #d4d4d4;
+}
+
+/* Dark palette (navy dashboard theme) */
+.dark {
+  color-scheme: dark;
+  --farm-background: #12142b;
+  --farm-foreground: #f3f4f6;
+  --farm-surface: #12142b;
+  --farm-surface-dim: #12142b;
+  --farm-surface-bright: #2e3260;
+  --farm-surface-variant: #23264c;
+  --farm-surface-tint: #22d3ee;
+  --farm-surface-container: #1f2244;
+  --farm-surface-container-low: #171a33;
+  --farm-surface-container-lowest: #1b1e3a;
+  --farm-surface-container-high: #23264c;
+  --farm-surface-container-highest: #282c55;
+  --farm-on-background: #f3f4f6;
+  --farm-on-surface: #f3f4f6;
+  --farm-on-surface-variant: #9ca3af;
+  --farm-inverse-surface: #f3f4f6;
+  --farm-inverse-on-surface: #1b1e3a;
+  --farm-primary: #f3f4f6;
+  --farm-on-primary: #12142b;
+  --farm-primary-container: #e5e7eb;
+  --farm-on-primary-container: #9ca3af;
+  --farm-inverse-primary: #4b5563;
+  --farm-secondary: #9ca3af;
+  --farm-on-secondary: #12142b;
+  --farm-secondary-container: #1f2244;
+  --farm-on-secondary-container: #d1d5db;
+  --farm-tertiary: #22d3ee;
+  --farm-on-tertiary: #12142b;
+  --farm-tertiary-container: #164e63;
+  --farm-on-tertiary-container: #a5f3fc;
+  --farm-error: #ef4444;
+  --farm-on-error: #f3f4f6;
+  --farm-error-container: #7f1d1d;
+  --farm-on-error-container: #fecaca;
+  --farm-outline: #6b7280;
+  --farm-outline-variant: rgba(255, 255, 255, 0.08);
+  --farm-accent-cyan: #22d3ee;
+  --farm-accent-amber: #f59e0b;
+  --farm-accent-yellow: #facc15;
+  --farm-accent-blue: #3b82f6;
+  --farm-accent-pink: #ec4899;
+  --farm-accent-teal: #2dd4bf;
+
+  --clinical-card-bg: #1b1e3a;
+  --clinical-card-border: rgba(255, 255, 255, 0.06);
+  --clinical-card-border-hover: rgba(255, 255, 255, 0.14);
+  --grid-line-subtle: #181b34;
+  --grid-line: rgba(255, 255, 255, 0.05);
+  --scrollbar-thumb: #2a2e55;
+}
+
+@theme {
   --font-body-md: "Inter", sans-serif;
   --font-label-caps: "Inter", sans-serif;
   --font-display-lg: "Inter", sans-serif;
@@ -238,8 +354,8 @@
 
 @layer base {
   body {
-    background-color: #131313;
-    color: #e5e2e1;
+    background-color: var(--farm-background);
+    color: var(--farm-foreground);
     font-family: "Inter", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
@@ -266,30 +382,30 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #232426;
+    background: var(--scrollbar-thumb);
   }
 }
 
 @utility clinical-card {
-  background-color: #0d0d0e;
-  border: 1px solid #232426;
+  background-color: var(--clinical-card-bg);
+  border: 1px solid var(--clinical-card-border);
   transition: border-color 0.15s ease;
   &:hover {
-    border-color: #444749;
+    border-color: var(--clinical-card-border-hover);
   }
 }
 
 @utility data-grid-bg {
   background-image:
-    linear-gradient(#1a1a1a 1px, transparent 1px),
-    linear-gradient(90deg, #1a1a1a 1px, transparent 1px);
+    linear-gradient(var(--grid-line-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line-subtle) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
 @utility grid-bg {
   background-image:
-    linear-gradient(#232426 1px, transparent 1px),
-    linear-gradient(90deg, #232426 1px, transparent 1px);
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
@@ -300,12 +416,16 @@
 }
 
 @utility alert-critical {
-  border-left-color: #ffb4ab;
-  background: linear-gradient(90deg, rgba(255, 180, 171, 0.05) 0%, transparent 100%);
+  border-left-color: var(--farm-error);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--farm-error) 6%, transparent) 0%,
+    transparent 100%
+  );
 }
 
 @utility nav-active {
-  background-color: #464749;
-  color: #ffffff;
-  border-right: 2px solid #ffffff;
+  background-color: var(--farm-secondary-container);
+  color: var(--farm-primary);
+  border-right: 2px solid var(--farm-primary);
 }

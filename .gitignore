@@ -16,6 +16,16 @@ dist-ssr
 .nitro
 *.local
 
+# Env files (HF_TOKEN etc.) — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Local dev artifacts (verification screenshots, stray npm lockfile — repo uses bun)
+/screenshot-*.png
+/verify-*.png
+package-lock.json
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
