@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TelemetryRouteImport } from './routes/telemetry'
+import { Route as VisualsRouteImport } from './routes/visuals'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const TelemetryRoute = TelemetryRouteImport.update({
   path: '/telemetry',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VisualsRoute = VisualsRouteImport.update({
+  id: '/visuals',
+  path: '/visuals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/telemetry': typeof TelemetryRoute
+  '/visuals': typeof VisualsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/telemetry': typeof TelemetryRoute
+  '/visuals': typeof VisualsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/telemetry': typeof TelemetryRoute
+  '/visuals': typeof VisualsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/telemetry'
+  fullPaths: '/' | '/telemetry' | '/visuals'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/telemetry'
-  id: '__root__' | '/' | '/telemetry'
+  to: '/' | '/telemetry' | '/visuals'
+  id: '__root__' | '/' | '/telemetry' | '/visuals'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   TelemetryRoute: typeof TelemetryRoute
+  VisualsRoute: typeof VisualsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TelemetryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/visuals': {
+      id: '/visuals'
+      path: '/visuals'
+      fullPath: '/visuals'
+      preLoaderRoute: typeof VisualsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   TelemetryRoute: TelemetryRoute,
+  VisualsRoute: VisualsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
