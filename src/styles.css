@@ -142,3 +142,170 @@
     color: var(--color-foreground);
   }
 }
+
+/* ============================================================
+ * POULTRY_AI / FARM_OS clinical design system
+ * ============================================================ */
+
+@theme {
+  --color-background: #131313;
+  --color-foreground: #e5e2e1;
+  --color-surface: #131313;
+  --color-surface-dim: #131313;
+  --color-surface-bright: #3a3939;
+  --color-surface-variant: #353434;
+  --color-surface-tint: #c5c7c8;
+  --color-surface-container: #201f1f;
+  --color-surface-container-low: #1c1b1b;
+  --color-surface-container-lowest: #0e0e0e;
+  --color-surface-container-high: #2a2a2a;
+  --color-surface-container-highest: #353434;
+  --color-on-background: #e5e2e1;
+  --color-on-surface: #e5e2e1;
+  --color-on-surface-variant: #c4c7c8;
+  --color-inverse-surface: #e5e2e1;
+  --color-inverse-on-surface: #313030;
+  --color-primary: #ffffff;
+  --color-on-primary: #2e3132;
+  --color-primary-container: #e1e3e4;
+  --color-on-primary-container: #626566;
+  --color-inverse-primary: #5c5f60;
+  --color-secondary: #c7c6c8;
+  --color-on-secondary: #2f3032;
+  --color-secondary-container: #464749;
+  --color-on-secondary-container: #b5b5b7;
+  --color-tertiary: #ffffff;
+  --color-on-tertiary: #362f2d;
+  --color-tertiary-container: #ece0dd;
+  --color-on-tertiary-container: #6b6260;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-outline: #8e9193;
+  --color-outline-variant: #444749;
+
+  --font-body-md: "Inter", sans-serif;
+  --font-label-caps: "Inter", sans-serif;
+  --font-display-lg: "Inter", sans-serif;
+  --font-headline-md: "Inter", sans-serif;
+  --font-headline-sm: "Inter", sans-serif;
+  --font-headline-lg: "Inter", sans-serif;
+  --font-data-md: "JetBrains Mono", monospace;
+  --font-data-lg: "JetBrains Mono", monospace;
+
+  --text-label-caps: 11px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--letter-spacing: 0.06em;
+  --text-label-caps--font-weight: 600;
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-md--font-weight: 400;
+  --text-data-md: 14px;
+  --text-data-md--line-height: 18px;
+  --text-data-md--font-weight: 500;
+  --text-data-lg: 24px;
+  --text-data-lg--line-height: 24px;
+  --text-data-lg--letter-spacing: -0.02em;
+  --text-data-lg--font-weight: 500;
+  --text-headline-sm: 18px;
+  --text-headline-sm--line-height: 24px;
+  --text-headline-sm--letter-spacing: -0.01em;
+  --text-headline-sm--font-weight: 500;
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 500;
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--letter-spacing: -0.02em;
+  --text-headline-lg--font-weight: 600;
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 56px;
+  --text-display-lg--letter-spacing: -0.02em;
+  --text-display-lg--font-weight: 600;
+
+  --spacing-gutter: 16px;
+  --spacing-unit: 4px;
+  --spacing-stack-sm: 8px;
+  --spacing-stack-md: 16px;
+  --spacing-stack-lg: 32px;
+  --spacing-section-padding-v: 80px;
+  --spacing-section-padding-h: 40px;
+
+  --radius-DEFAULT: 0.125rem;
+}
+
+@layer base {
+  body {
+    background-color: #131313;
+    color: #e5e2e1;
+    font-family: "Inter", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #232426;
+  }
+}
+
+@utility clinical-card {
+  background-color: #0d0d0e;
+  border: 1px solid #232426;
+  transition: border-color 0.15s ease;
+  &:hover {
+    border-color: #444749;
+  }
+}
+
+@utility data-grid-bg {
+  background-image:
+    linear-gradient(#1a1a1a 1px, transparent 1px),
+    linear-gradient(90deg, #1a1a1a 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+@utility grid-bg {
+  background-image:
+    linear-gradient(#232426 1px, transparent 1px),
+    linear-gradient(90deg, #232426 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+@utility hud-scanline {
+  background: linear-gradient(to bottom, transparent 50%, rgba(35, 36, 38, 0.1) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+@utility alert-critical {
+  border-left-color: #ffb4ab;
+  background: linear-gradient(90deg, rgba(255, 180, 171, 0.05) 0%, transparent 100%);
+}
+
+@utility nav-active {
+  background-color: #464749;
+  color: #ffffff;
+  border-right: 2px solid #ffffff;
+}
