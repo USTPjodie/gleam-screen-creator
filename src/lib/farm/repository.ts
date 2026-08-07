@@ -1,0 +1,196 @@
+import { createServerFn } from "@tanstack/react-start";
+import { formatMeasurement } from "./format";
+import {
+  activeIncident,
+  farm,
+  flockStandardDeviationG,
+  houseLabel,
+  houseReadings,
+  lastAnomaly,
+  liveCamera,
+  minutesSinceLastAnomaly,
+  readingByCode,
+} from "./dataset";
+import type { ReportFinding } from "./types";
+
+/**
+ * Data access layer — the seam a real database plugs into.
+ *
+ * Each function is a TanStack server function, so it already runs on the server
+ * for both SSR and client navigation. Today the handlers read the in-memory
+ * `farm` dataset; to go live, replace the body of each handler with the
+ * equivalent query (e.g. `await db.query.houses.findMany(...)`) and keep the
+ * returned shape. Pages consume these through route loaders and never import
+ * the dataset for their figures, so no UI code changes when the source changes.
+ *
+ * Contract for every handler:
+ * - returns JSON-serializable data only (numbers, strings, ISO timestamps);
+ * - returns raw values, not formatted strings (formatting lives in `format.ts`);
+ * - is read-only and safe to call during render.
+ */
+
+/** Dashboard — executive summary, activity index, KPI cards, alerts, sensors. */
+export const getOperationsOverview = createServerFn({ method: "GET" }).handler(async () => {
+  const clusterHouseId = liveCamera().houseId;
+
+  return {
+    facility: {
+      name: farm.facility.name,
+      houseRange: farm.facility.houseRange,
+      breed: farm.facility.breed,
+    },
+    cycle: farm.cycle,
+    platform: farm.platform,
+    summary: farm.summary,
+    activity: farm.activity,
+    weight: farm.weight,
+    flockStandardDeviationG: flockStandardDeviationG(),
+    water: farm.water,
+    feed: farm.feed,
+    alerts: farm.alerts,
+    /** Sensor cluster shown at the foot of the dashboard. */
+    cluster: {
+      houseId: clusterHouseId,
+      houseLabel: houseLabel(clusterHouseId),
+      readings: houseReadings(clusterHouseId),
+    },
+    lastAnomaly: lastAnomaly(),
+    minutesSinceLastAnomaly: minutesSinceLastAnomaly(),
+    report: farm.report,
+  };
+});
+
+/** Analytics — growth curve, cohort distribution, volumetric sample. */
+export const getGrowthAnalytics = createServerFn({ method: "GET" }).handler(async () => {
+  const volumetricCohort = farm.cohorts.find((c) => c.id === farm.volumetric.cohortId);
+
+  return {
+    cycle: farm.cycle,
+    weight: farm.weight,
+    feed: farm.feed,
+    flockStandardDeviationG: flockStandardDeviationG(),
+    cohorts: farm.cohorts.map((cohort) => ({
+      ...cohort,
+      houseLabel: houseLabel(cohort.houseId),
+    })),
+    volumetric: {
+      ...farm.volumetric,
+      cohortHouseLabel: volumetricCohort ? houseLabel(volumetricCohort.houseId) : null,
+    },
+  };
+});
+
+/** Visual telemetry — live feed overlays, behaviour metrics, anomaly timeline. */
+export const getVisualTelemetry = createServerFn({ method: "GET" }).handler(async () => {
+  const camera = liveCamera();
+  const cycleTotalDays = Math.round(
+    (new Date(farm.cycle.projectedYieldDate).getTime() -
+      new Date(farm.cycle.startDate).getTime()) /
+      86_400_000,
+  );
+
+  return {
+    camera: { ...camera, houseLabel: houseLabel(camera.houseId) },
+    /** HUD readings for the house on camera. */
+    hud: {
+      temperature: readingByCode(`TEMP_${camera.houseId}`),
+      humidity: readingByCode(`HUMID_${camera.houseId}`),
+    },
+    detections: farm.detections,
+    clusterWarning: farm.clusterWarning,
+    behavior: farm.behavior,
+    weight: {
+      actualAvgG: farm.weight.actualAvgG,
+      variancePercent: farm.weight.variancePercent,
+      estimationConfidencePercent: farm.weight.estimationConfidencePercent,
+      status: farm.weight.status,
+    },
+    cycleDay: farm.cycle.day,
+    /** Grow-out length used to show how far the cycle has progressed. */
+    cycleTotalDays,
+    timeline: farm.timeline,
+  };
+});
+
+/** Intelligence — the auto-generated monitoring report and its evidence. */
+export const getMonitoringReport = createServerFn({ method: "GET" }).handler(async () => {
+  const incident = activeIncident();
+  const nh3Current = readingByCode("NH3_H02");
+  const temperature = readingByCode("TEMP_H04");
+  const humidity = readingByCode("HUMID_H04");
+  const co2 = readingByCode("CO2_H04");
+
+  const findings: ReportFinding[] = [
+    {
+      id: "nh3-peak",
+      parameter: "Ammonia NH3 (incident peak)",
+      source: `${incident.peak.sensorId} / ${houseLabel(incident.houseId)}`,
+      value: incident.peak.value,
+      unit: incident.peak.unit,
+      boundsLabel: `<= ${incident.peak.threshold} ${incident.peak.unit.toLowerCase()}`,
+      status: "critical",
+    },
+    {
+      id: "nh3-current",
+      parameter: "Ammonia NH3 (current)",
+      source: `${nh3Current.sensorId} / ${houseLabel(nh3Current.houseId)}`,
+      value: nh3Current.value,
+      unit: nh3Current.unit,
+      boundsLabel: nh3Current.bounds.label,
+      status: nh3Current.status,
+    },
+    {
+      id: "temperature",
+      parameter: "Temperature",
+      source: `${temperature.sensorId} / ${houseLabel(temperature.houseId)}`,
+      value: temperature.value,
+      unit: temperature.unit,
+      boundsLabel: temperature.bounds.label,
+      status: temperature.status,
+    },
+    {
+      id: "humidity",
+      parameter: "Relative humidity",
+      source: `${humidity.sensorId} / ${houseLabel(humidity.houseId)}`,
+      value: humidity.value,
+      unit: humidity.unit,
+      boundsLabel: humidity.bounds.label,
+      status: humidity.status,
+    },
+    {
+      id: "co2",
+      parameter: "Carbon dioxide CO2",
+      source: `${co2.sensorId} / ${houseLabel(co2.houseId)}`,
+      value: co2.value,
+      unit: co2.unit,
+      boundsLabel: co2.bounds.label,
+      status: co2.status,
+    },
+    {
+      id: "weight",
+      parameter: "Average bird weight",
+      source: `SCALE / ${farm.facility.houseRange}`,
+      value: farm.weight.actualAvgG,
+      unit: "g",
+      boundsLabel: `STD ${formatMeasurement(farm.weight.standardG, "g")}`,
+      status: farm.weight.status,
+    },
+  ];
+
+  return {
+    report: farm.report,
+    platform: farm.platform,
+    facility: {
+      name: farm.facility.name,
+      houseRange: farm.facility.houseRange,
+    },
+    cycle: farm.cycle,
+    incident: {
+      ...incident,
+      houseLabel: houseLabel(incident.houseId),
+    },
+    findings,
+    references: farm.references,
+    archive: farm.archive,
+  };
+});

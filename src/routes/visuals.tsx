@@ -2,13 +2,30 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
+import { liveCamera } from "@/lib/farm/dataset";
+import {
+  STATUS_TONE,
+  barWidth,
+  formatCompact,
+  formatKilograms,
+  formatMeasurement,
+  formatNumber,
+  formatPercent,
+  formatScore,
+  formatSignedPercent,
+  statusLabel,
+  timelinePosition,
+  timelineTicks,
+} from "@/lib/farm/format";
+import { getVisualTelemetry } from "@/lib/farm/repository";
 
 const TITLE = "Visual Telemetry | POULTRY_AI Live Feeds";
 const DESC =
   "Live 4K house feed with behavior monitoring, 3D-camera weight estimation, spatial distribution and a 24h anomaly timeline.";
 
-const FEED_IMAGE =
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCopPRa-XNdwo1f1TabwijSaLDroEN5UcUNFyqBxoDaoD7HlhDF31VnUxCcaHYvsmfoOnod-eYWNzRS9gu_YwwofE4fWx_b3U4UkQDptdvhXYFtSDbppGIPUqg1jrCNZGVz9bnAfI6WcOtg63ag0XjICfOZ_fXhdu-VU9Yi1FZfcxcRYHJkq4JLRJbPY1V2FkvDFg5tqr3PWKSKROY8pmCx9Xcd2tujDrN8qDnhKp7okRgiqYRgg5o_";
+// `head()` runs before loader data exists, so the social preview reads the
+// dataset directly — the same still the feed renders below.
+const FEED_IMAGE = liveCamera().stillUrl;
 
 export const Route = createFileRoute("/visuals")({
   head: () => ({
@@ -21,13 +38,35 @@ export const Route = createFileRoute("/visuals")({
       { name: "twitter:image", content: FEED_IMAGE },
     ],
   }),
+  loader: () => getVisualTelemetry(),
   component: VisualsPage,
 });
 
 type FeedMode = "behavior" | "weight";
 
+/** Overlay stroke colours, matched to the accent palette used by the HUD. */
+const OVERLAY_NEUTRAL = "#f3f4f6";
+const OVERLAY_DEPTH = "#22d3ee";
+const OVERLAY_WARN = "#f59e0b";
+
 function VisualsPage() {
+  const {
+    camera,
+    hud,
+    detections,
+    clusterWarning,
+    behavior,
+    weight,
+    cycleDay,
+    cycleTotalDays,
+    timeline,
+  } = Route.useLoaderData();
   const [mode, setMode] = useState<FeedMode>("behavior");
+  const [gridOverlay, setGridOverlay] = useState(false);
+
+  const movementTone = STATUS_TONE[behavior.movementStatus];
+  const huddlingTone = STATUS_TONE[behavior.huddlingStatus];
+  const pointDensity = formatCompact(camera.depthPointsPerFrame).toUpperCase();
 
   return (
     <AppShell bare>
@@ -35,24 +74,36 @@ function VisualsPage() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-error" />
-            <h1 className="font-data-md text-data-md text-on-surface">
-              LIVE_FEED: UNIT_04_NORTH
-            </h1>
+            <h1 className="font-data-md text-data-md text-on-surface">LIVE_FEED: {camera.id}</h1>
           </div>
           <div className="h-4 w-px bg-outline-variant" />
-          <span className="font-data-md text-data-md text-on-surface-variant">FPS: 60.2</span>
-          <span className="font-data-md text-data-md text-on-surface-variant">RES: 4K_UHD</span>
+          <span className="font-data-md text-data-md text-on-surface-variant">
+            {camera.houseLabel.toUpperCase()}
+          </span>
+          <span className="font-data-md text-data-md text-on-surface-variant">
+            FPS: {camera.fps.toFixed(1)}
+          </span>
+          <span className="font-data-md text-data-md text-on-surface-variant">
+            RES: {camera.resolution}
+          </span>
         </div>
         <div className="flex gap-2">
-          <button className="border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high">
+          <button
+            onClick={() => setGridOverlay((on) => !on)}
+            className={
+              gridOverlay
+                ? "rounded-lg border border-primary bg-surface-container-high panel-gradient px-3 py-1 font-label-caps text-label-caps text-primary"
+                : "rounded-lg border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high"
+            }
+          >
             GRID_OVERLAY
           </button>
           <button
             onClick={() => setMode("behavior")}
             className={
               mode === "behavior"
-                ? "border border-primary bg-surface-container-high px-3 py-1 font-label-caps text-label-caps text-primary"
-                : "border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high"
+                ? "rounded-lg border border-primary bg-surface-container-high panel-gradient px-3 py-1 font-label-caps text-label-caps text-primary"
+                : "rounded-lg border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high"
             }
           >
             BEHAVIOR
@@ -61,8 +112,8 @@ function VisualsPage() {
             onClick={() => setMode("weight")}
             className={
               mode === "weight"
-                ? "border border-primary bg-surface-container-high px-3 py-1 font-label-caps text-label-caps text-primary"
-                : "border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high"
+                ? "rounded-lg border border-primary bg-surface-container-high panel-gradient px-3 py-1 font-label-caps text-label-caps text-primary"
+                : "rounded-lg border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high"
             }
           >
             WEIGHT
@@ -73,7 +124,7 @@ function VisualsPage() {
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1 overflow-hidden bg-[#070708]">
           <img
-            src={FEED_IMAGE}
+            src={camera.stillUrl}
             alt="High-angle CCTV view of a modern poultry house interior under clinical lighting"
             className="absolute inset-0 h-full w-full object-cover opacity-80"
           />
@@ -84,84 +135,116 @@ function VisualsPage() {
           >
             {mode === "behavior" ? (
               <>
+                {detections.map((detection) => {
+                  const stroke = detection.flag ? OVERLAY_WARN : OVERLAY_NEUTRAL;
+                  return (
+                    <g key={detection.id}>
+                      <rect
+                        fill="none"
+                        height={detection.box.height}
+                        stroke={stroke}
+                        strokeDasharray={detection.behavior === "FEEDING" ? "2 2" : undefined}
+                        strokeWidth="1"
+                        width={detection.box.width}
+                        x={detection.box.x}
+                        y={detection.box.y}
+                      />
+                      <text
+                        fill={stroke}
+                        fontFamily="JetBrains Mono"
+                        fontSize="8"
+                        x={detection.box.x}
+                        y={detection.box.y - 5}
+                      >
+                        ID: {detection.id} [{detection.behavior}]
+                      </text>
+                    </g>
+                  );
+                })}
                 <rect
                   fill="none"
-                  height="40"
-                  stroke="#f3f4f6"
-                  strokeDasharray="2 2"
+                  height={clusterWarning.box.height}
+                  stroke={OVERLAY_WARN}
                   strokeWidth="1"
-                  width="40"
-                  x="250"
-                  y="320"
+                  width={clusterWarning.box.width}
+                  x={clusterWarning.box.x}
+                  y={clusterWarning.box.y}
                 />
-                <text fill="#f3f4f6" fontFamily="JetBrains Mono" fontSize="8" x="250" y="315">
-                  ID: 4522 [FEEDING]
-                </text>
-                <rect
-                  fill="none"
-                  height="35"
-                  stroke="#f3f4f6"
-                  strokeWidth="1"
-                  width="35"
-                  x="580"
-                  y="150"
-                />
-                <text fill="#f3f4f6" fontFamily="JetBrains Mono" fontSize="8" x="580" y="145">
-                  ID: 8901 [PREENING]
-                </text>
-                <rect
-                  fill="none"
-                  height="80"
-                  stroke="#f59e0b"
-                  strokeWidth="1"
-                  width="120"
-                  x="700"
-                  y="400"
-                />
-                <text fill="#f59e0b" fontFamily="JetBrains Mono" fontSize="10" x="700" y="395">
-                  WARN: HUDDLING_CLUSTER [0.02 RISK]
+                <text
+                  fill={OVERLAY_WARN}
+                  fontFamily="JetBrains Mono"
+                  fontSize="10"
+                  x={clusterWarning.box.x}
+                  y={clusterWarning.box.y - 5}
+                >
+                  WARN: {clusterWarning.label} [{formatScore(clusterWarning.risk)} RISK]
                 </text>
               </>
             ) : (
               <>
-                <text fill="#22d3ee" fontFamily="JetBrains Mono" fontSize="9" x="20" y="580">
-                  DEPTH_MAP: STEREO_3D | 42K PTS/FRAME
+                <text fill={OVERLAY_DEPTH} fontFamily="JetBrains Mono" fontSize="9" x="20" y="580">
+                  DEPTH_MAP: STEREO_3D | {pointDensity} PTS/FRAME
                 </text>
-                <rect
-                  fill="none"
-                  height="40"
-                  stroke="#22d3ee"
-                  strokeWidth="1"
-                  width="40"
-                  x="250"
-                  y="320"
-                />
-                <text fill="#22d3ee" fontFamily="JetBrains Mono" fontSize="8" x="250" y="315">
-                  ID: 4522 | EST: 2.41kg [97.8%]
-                </text>
-                <rect
-                  fill="none"
-                  height="35"
-                  stroke="#22d3ee"
-                  strokeWidth="1"
-                  width="35"
-                  x="580"
-                  y="150"
-                />
-                <text fill="#22d3ee" fontFamily="JetBrains Mono" fontSize="8" x="580" y="145">
-                  ID: 8901 | EST: 2.53kg [96.4%]
-                </text>
-                <rect
-                  fill="none"
-                  height="45"
-                  stroke="#f59e0b"
-                  strokeWidth="1"
-                  width="45"
-                  x="740"
-                  y="420"
-                />
-                <text fill="#f59e0b" fontFamily="JetBrains Mono" fontSize="9" x="740" y="415">
-                  ID: 7215 | EST: 1.98kg [LOW_WEIGHT]
+                {detections.map((detection) => {
+                  const stroke = detection.flag ? OVERLAY_WARN : OVERLAY_DEPTH;
+                  return (
+                    <g key={detection.id}>
+                      <rect
+                        fill="none"
+                        height={detection.box.height}
+                        stroke={stroke}
+                        strokeWidth="1"
+                        width={detection.box.width}
+                        x={detection.box.x}
+                        y={detection.box.y}
+                      />
+                      <text
+                        fill={stroke}
+                        fontFamily="JetBrains Mono"
+                        fontSize={detection.flag ? "9" : "8"}
+                        x={detection.box.x}
+                        y={detection.box.y - 5}
+                      >
+                        ID: {detection.id} | EST: {formatKilograms(detection.estimatedWeightG)} [
+                        {detection.flag ?? formatPercent(detection.weightConfidence * 100)}]
+                      </text>
+                    </g>
+                  );
+                })}
+              </>
+            )}
+            {gridOverlay && (
+              <>
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <line
+                    key={`gv-${i}`}
+                    stroke={OVERLAY_DEPTH}
+                    strokeOpacity="0.3"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                    x1={(i + 1) * 100}
+                    x2={(i + 1) * 100}
+                    y1="0"
+                    y2="600"
+                  />
+                ))}
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <line
+                    key={`gh-${i}`}
+                    stroke={OVERLAY_DEPTH}
+                    strokeOpacity="0.3"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                    x1="0"
+                    x2="1000"
+                    y1={(i + 1) * 100}
+                    y2={(i + 1) * 100}
+                  />
+                ))}
+                <line stroke={OVERLAY_DEPTH} strokeOpacity="0.6" strokeWidth="1" vectorEffect="non-scaling-stroke" x1="0" x2="1000" y1="300" y2="300" />
+                <line stroke={OVERLAY_DEPTH} strokeOpacity="0.6" strokeWidth="1" vectorEffect="non-scaling-stroke" x1="500" x2="500" y1="0" y2="600" />
+                <text fill={OVERLAY_DEPTH} fontFamily="JetBrains Mono" fontSize="9" x="860" y="20">
+                  CAL_GRID: 10x6 | LOCKED
                 </text>
               </>
             )}
@@ -169,33 +252,43 @@ function VisualsPage() {
             <line stroke="#232426" strokeWidth="0.5" x1="500" x2="500" y1="0" y2="600" />
           </svg>
 
-          <div className="absolute left-6 top-6 border border-outline-variant bg-surface-container-lowest/80 p-4 backdrop-blur-sm">
+          <div className="absolute left-6 top-6 rounded-xl border border-outline-variant bg-surface-container-lowest/80 panel-gradient p-4 backdrop-blur-sm">
             <p className="mb-1 font-label-caps text-[10px] text-on-surface-variant">
               OPTICAL_SENSORS
             </p>
             <div className="flex items-center gap-4">
               <div>
-                <p className="font-data-md text-[10px] text-outline-variant">TEMP</p>
-                <p className="font-data-lg text-data-lg text-primary">24.2°C</p>
+                <p className="font-data-md text-[10px] text-outline-variant">
+                  {hud.temperature.label}
+                </p>
+                <p className="font-data-lg text-data-lg text-primary">
+                  {formatMeasurement(hud.temperature.value, hud.temperature.unit)}
+                </p>
               </div>
               <div className="h-8 w-px bg-outline-variant" />
               <div>
-                <p className="font-data-md text-[10px] text-outline-variant">HUMID</p>
-                <p className="font-data-lg text-data-lg text-primary">58%</p>
+                <p className="font-data-md text-[10px] text-outline-variant">{hud.humidity.label}</p>
+                <p className="font-data-lg text-data-lg text-primary">
+                  {formatMeasurement(hud.humidity.value, hud.humidity.unit)}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="absolute bottom-6 right-6 flex flex-col items-end gap-2">
-            <div className="flex items-center gap-4 border border-outline-variant bg-surface-container-lowest/80 p-2 backdrop-blur-sm">
-              <span className="font-data-md text-[11px] text-on-surface">LOC_X: 45.021</span>
-              <span className="font-data-md text-[11px] text-on-surface">LOC_Y: 12.884</span>
+            <div className="flex items-center gap-4 rounded-lg border border-outline-variant bg-surface-container-lowest/80 panel-gradient p-2 backdrop-blur-sm">
+              <span className="font-data-md text-[11px] text-on-surface">
+                LOC_X: {camera.location.x.toFixed(3)}
+              </span>
+              <span className="font-data-md text-[11px] text-on-surface">
+                LOC_Y: {camera.location.y.toFixed(3)}
+              </span>
             </div>
             <div className="flex gap-2">
-              <button className="flex h-10 w-10 items-center justify-center border border-outline-variant bg-surface-container-lowest/80 transition-colors hover:bg-primary hover:text-background">
+              <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest/80 transition-colors hover:bg-primary hover:text-background">
                 <Icon name="videocam" size={20} />
               </button>
-              <button className="flex h-10 w-10 items-center justify-center border border-outline-variant bg-surface-container-lowest/80 transition-colors hover:bg-primary hover:text-background">
+              <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant bg-surface-container-lowest/80 transition-colors hover:bg-primary hover:text-background">
                 <Icon name="screenshot_region" size={20} />
               </button>
             </div>
@@ -216,16 +309,25 @@ function VisualsPage() {
                   <p className="font-label-caps text-[10px] text-on-surface-variant">
                     MOVEMENT_INDEX
                   </p>
-                  <span className="rounded bg-accent-teal/10 px-1.5 py-0.5 text-[9px] font-bold text-accent-teal">
-                    STABLE
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${movementTone.chip}`}
+                  >
+                    {statusLabel(behavior.movementStatus)}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="font-data-lg text-data-lg text-primary">0.84</p>
-                  <p className="font-data-md text-data-md text-on-surface-variant">HIGH</p>
+                  <p className="font-data-lg text-data-lg text-primary">
+                    {formatScore(behavior.movementIndex)}
+                  </p>
+                  <p className="font-data-md text-data-md text-on-surface-variant">
+                    {behavior.movementLabel}
+                  </p>
                 </div>
-                <div className="h-1 w-full bg-outline-variant">
-                  <div className="h-full bg-accent-cyan" style={{ width: "84%" }} />
+                <div className="h-1 w-full overflow-hidden rounded-full bg-outline-variant">
+                  <div
+                    className="h-full rounded-full accent-gradient"
+                    style={{ width: barWidth(behavior.movementIndex, 1) }}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
@@ -233,23 +335,29 @@ function VisualsPage() {
                   <p className="font-label-caps text-[10px] text-on-surface-variant">
                     HUDDLING_RISK
                   </p>
-                  <span className="rounded bg-on-surface-variant/10 px-1.5 py-0.5 text-[9px] font-bold text-on-surface-variant">
-                    NOMINAL
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${huddlingTone.chip}`}
+                  >
+                    {statusLabel(behavior.huddlingStatus)}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="font-data-lg text-data-lg text-primary">2%</p>
-                  <p className="font-data-md text-data-md text-on-surface-variant">MINIMAL</p>
+                  <p className="font-data-lg text-data-lg text-primary">
+                    {formatPercent(behavior.huddlingRisk * 100, 0)}
+                  </p>
+                  <p className="font-data-md text-data-md text-on-surface-variant">
+                    {behavior.huddlingLabel}
+                  </p>
                 </div>
               </div>
-              <div className="rounded border border-outline-variant bg-surface-container p-3">
+              <div className="rounded-lg border border-outline-variant bg-surface-container panel-gradient p-3">
                 <p className="mb-2 font-label-caps text-[10px] text-outline-variant">
                   AGGRESSION_LOG
                 </p>
                 <div className="flex items-center gap-3">
                   <Icon name="shield" className="text-on-surface-variant" />
                   <span className="font-data-md text-data-md text-on-surface">
-                    0 EVENTS DETECTED
+                    {behavior.aggressionEvents} EVENTS DETECTED
                   </span>
                 </div>
               </div>
@@ -261,16 +369,28 @@ function VisualsPage() {
                   <p className="font-label-caps text-[10px] text-on-surface-variant">
                     AVG_EST_WEIGHT
                   </p>
-                  <span className="rounded bg-accent-teal/10 px-1.5 py-0.5 text-[9px] font-bold text-accent-teal">
-                    +1.2% VS STD
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
+                      STATUS_TONE[weight.status].chip
+                    }`}
+                  >
+                    {formatSignedPercent(weight.variancePercent)} VS STD
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="font-data-lg text-data-lg text-primary">2,452g</p>
-                  <p className="font-data-md text-data-md text-on-surface-variant">DAY 42</p>
+                  <p className="font-data-lg text-data-lg text-primary">
+                    {formatNumber(weight.actualAvgG)}g
+                  </p>
+                  <p className="font-data-md text-data-md text-on-surface-variant">
+                    DAY {cycleDay}
+                  </p>
                 </div>
-                <div className="h-1 w-full bg-outline-variant">
-                  <div className="h-full bg-accent-cyan" style={{ width: "72%" }} />
+                {/* Bar tracks how far the grow-out has progressed. */}
+                <div className="h-1 w-full overflow-hidden rounded-full bg-outline-variant">
+                  <div
+                    className="h-full rounded-full accent-gradient"
+                    style={{ width: barWidth(cycleDay, cycleTotalDays) }}
+                  />
                 </div>
               </div>
               <div className="space-y-1">
@@ -278,18 +398,20 @@ function VisualsPage() {
                   <p className="font-label-caps text-[10px] text-on-surface-variant">
                     EST_CONFIDENCE
                   </p>
-                  <span className="rounded bg-on-surface-variant/10 px-1.5 py-0.5 text-[9px] font-bold text-on-surface-variant">
+                  <span className="rounded-md bg-on-surface-variant/10 px-1.5 py-0.5 text-[9px] font-bold text-on-surface-variant">
                     SENSOR_STABLE
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="font-data-lg text-data-lg text-primary">96.8%</p>
+                  <p className="font-data-lg text-data-lg text-primary">
+                    {formatPercent(weight.estimationConfidencePercent, 0)}
+                  </p>
                   <p className="font-data-md text-data-md text-on-surface-variant">
-                    1,284 BIRDS SCANNED
+                    {formatNumber(camera.birdsScanned)} BIRDS SCANNED
                   </p>
                 </div>
               </div>
-              <div className="rounded border border-outline-variant bg-surface-container p-3">
+              <div className="rounded-lg border border-outline-variant bg-surface-container panel-gradient p-3">
                 <p className="mb-2 font-label-caps text-[10px] text-outline-variant">
                   3D_DEPTH_CAMERA
                 </p>
@@ -297,10 +419,10 @@ function VisualsPage() {
                   <Icon name="view_in_ar" className="text-accent-cyan" />
                   <div>
                     <span className="block font-data-md text-data-md text-on-surface">
-                      STEREO_DEPTH: ONLINE
+                      STEREO_DEPTH: {camera.online ? "ONLINE" : "OFFLINE"}
                     </span>
                     <span className="block font-data-md text-[10px] text-on-surface-variant">
-                      POINT_DENSITY: 42K/FRAME
+                      POINT_DENSITY: {pointDensity}/FRAME
                     </span>
                   </div>
                 </div>
@@ -311,7 +433,7 @@ function VisualsPage() {
             <p className="mb-3 font-label-caps text-[10px] text-on-surface-variant">
               SPATIAL_DISTRIBUTION
             </p>
-            <div className="relative flex aspect-square items-center justify-center overflow-hidden border border-outline-variant bg-surface-container-low">
+            <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-outline-variant bg-surface-container-low panel-gradient">
               <div className="absolute inset-0 grid grid-cols-4 grid-rows-4 opacity-20">
                 {Array.from({ length: 16 }).map((_, i) => (
                   <div key={i} className="border border-outline-variant" />
@@ -320,12 +442,12 @@ function VisualsPage() {
               <div className="h-16 w-16 rounded-full bg-accent-cyan/20 blur-xl" />
               <div className="h-12 w-12 translate-x-12 translate-y-8 rounded-full bg-accent-cyan/10 blur-lg" />
               <p className="relative z-10 font-data-md text-[9px] text-outline-variant">
-                UNIT_04_PLAN_VIEW
+                {camera.planViewLabel}
               </p>
             </div>
           </div>
           <div className="border-t border-outline-variant p-4">
-            <button className="w-full border border-primary py-3 font-label-caps text-label-caps text-primary transition-all hover:bg-primary hover:text-background">
+            <button className="w-full rounded-lg border border-primary py-3 font-label-caps text-label-caps text-primary transition-all hover:bg-primary hover:text-background">
               EXPORT_METRICS_REPORT
             </button>
           </div>
@@ -346,34 +468,34 @@ function VisualsPage() {
             </span>
           </div>
         </div>
-        <div className="relative flex-1 cursor-pointer border border-outline-variant bg-surface-container">
+        <div className="relative flex-1 cursor-pointer overflow-hidden rounded-lg border border-outline-variant bg-surface-container panel-gradient">
           <div className="absolute inset-x-0 bottom-0 flex justify-between px-2 py-1">
-            {["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "NOW"].map((t) => (
-              <span key={t} className="font-data-md text-[9px] text-outline-variant">
-                {t}
+            {timelineTicks(timeline.windowStart, timeline.windowEnd).map((tick) => (
+              <span key={tick} className="font-data-md text-[9px] text-outline-variant">
+                {tick}
               </span>
             ))}
           </div>
           <div
             className="absolute bottom-0 top-0 z-10 w-px bg-accent-cyan"
-            style={{ left: "88%" }}
+            style={{
+              left: timelinePosition(timeline.cursorAt, timeline.windowStart, timeline.windowEnd),
+            }}
           >
             <div className="absolute top-0 h-2 w-2 -translate-x-1/2 rotate-45 bg-accent-cyan" />
           </div>
-          {[
-            ["12%", true],
-            ["45%", false],
-            ["62%", true],
-            ["82%", false],
-          ].map(([left, critical]) => (
+          {timeline.events.map((event) => (
             <div
-              key={left as string}
+              key={event.id}
+              title={`${event.label} — ${statusLabel(event.severity)}`}
               className={`absolute top-1/4 h-1/2 w-1 transition-transform hover:scale-y-150 ${
-                critical
+                event.severity === "critical"
                   ? "border border-error bg-error-container"
                   : "border border-accent-amber bg-accent-amber/30"
               }`}
-              style={{ left: left as string }}
+              style={{
+                left: timelinePosition(event.at, timeline.windowStart, timeline.windowEnd),
+              }}
             />
           ))}
         </div>

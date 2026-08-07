@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { buildFarmSnapshot } from "./farm/snapshot";
 
 /**
  * Intelligence engine for the Intelligence page — served by Groq's free
@@ -12,25 +13,16 @@ const CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
 const REQUEST_TIMEOUT_MS = 60_000;
 
-/** Telemetry snapshot mirroring the dashboard mock data — grounding context for the model. */
-const FARM_SNAPSHOT = `FARM TELEMETRY SNAPSHOT (POULTRY_AI FARM_OS v2.4.0)
-- Facility: Houses 01-04, Ross 308 broilers, grow-out day 42.
-- Real-time activity index: 482.4 IDX, trending up over last 24h.
-- Weight: actual avg 2,452 g vs breed standard 2,422 g (+1.2% variance, TRENDING_OPTIMAL, conf 98.4%).
-- Estimation confidence: 94% (SENSOR_STABLE).
-- House 04 environment: temp 24.2 C, humidity 58%, NH3 3 ppm, CO2 1,100 ppm — within bounds.
-- Open incident: House 02 activity dropped 15.4% between 02:15-04:40 UTC. Sensor SN-482-H2
-  recorded an ammonia spike peaking 28.4 ppm (+420% vs baseline), above the 25 ppm threshold
-  for 142 minutes. Cause: ventilation group B failure after a circuit breaker trip. Ventilation
-  restored; NH3 back to 3 ppm.
-- Camera AI (UNIT_04_NORTH): huddling cluster warning flagged (0.82 confidence) in House 02 replay.
-- Platform: API_v1.2, ML_MODEL_v4, inference latency 24 ms, CPU 34%, RAM 2.1 GB, status NOMINAL.`;
+/**
+ * Grounding context, rendered from the same dataset the pages read
+ * (`src/lib/farm`) so the model and the UI can never quote different figures.
+ */
+const FARM_SNAPSHOT = buildFarmSnapshot();
 
 const SYSTEM_PROMPT = `You are the POULTRY_AI Intelligence Engine inside the FARM_OS operations console.
-Answer operator questions strictly grounded in the telemetry snapshot below. Be precise and
-clinical; reference sensors, houses and figures from the snapshot. If asked something the
-snapshot cannot answer, say what additional telemetry would be required. Respond in plain
-text only (no markdown, no headings), maximum 120 words.
+Produce analysis strictly grounded in the telemetry snapshot below. Be precise and clinical;
+reference sensors, houses and figures from the snapshot. Respond in plain text only
+(no markdown, no headings).
 
 ${FARM_SNAPSHOT}`;
 
@@ -100,19 +92,21 @@ async function callEngine(
   return { content, latencyMs: Date.now() - started, model: json.model ?? model };
 }
 
-/** Operator Q&A — results analysis grounded in the farm snapshot. */
-export const queryIntelligence = createServerFn({ method: "POST" })
-  .validator(z.object({ question: z.string().trim().min(1).max(2000) }))
-  .handler(async ({ data }) => {
-    const { content, latencyMs, model } = await callEngine(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: data.question },
-      ],
-      2000,
-    );
-    return { answer: content, latencyMs, model };
-  });
+/** Situation briefing — auto-generated from the current telemetry, no operator input. */
+const BRIEFING_PROMPT = `Compile the automated situation briefing for the farm operator right now.
+Cover: overall flock status, the open incident in the snapshot with its root cause, and the
+immediate outlook. Maximum 130 words, 2-3 short paragraphs separated by blank lines.`;
+
+export const fetchSituationBriefing = createServerFn({ method: "POST" }).handler(async () => {
+  const { content, latencyMs, model } = await callEngine(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: BRIEFING_PROMPT },
+    ],
+    2000,
+  );
+  return { briefing: content, latencyMs, model, generatedAt: new Date().toISOString() };
+});
 
 const alertSchema = z.object({
   severity: z.enum(["critical", "warning", "nominal"]),

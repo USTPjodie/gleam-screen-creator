@@ -13,7 +13,7 @@ export function ThemeToggle() {
           // storage unavailable (private mode) — theme still applies for the session
         }
       }}
-      className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface"
+      className="rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface"
       aria-label="Toggle light/dark mode"
       title="Toggle light/dark mode"
     >

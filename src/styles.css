@@ -192,45 +192,45 @@
   --color-accent-teal: var(--farm-accent-teal);
 }
 
-/* Light palette (default) */
+/* Light palette (cool navy-tinted clinical theme) */
 :root {
   color-scheme: light;
-  --farm-background: #f6f6f6;
-  --farm-foreground: #1a1c1c;
-  --farm-surface: #f6f6f6;
-  --farm-surface-dim: #d7d7d7;
-  --farm-surface-bright: #f6f6f6;
-  --farm-surface-variant: #e2e2e2;
-  --farm-surface-tint: #5c5f60;
-  --farm-surface-container: #ebebeb;
-  --farm-surface-container-low: #f0f0f0;
+  --farm-background: #f3f5fa;
+  --farm-foreground: #1a2337;
+  --farm-surface: #f3f5fa;
+  --farm-surface-dim: #d9dfeb;
+  --farm-surface-bright: #f8fafd;
+  --farm-surface-variant: #e4e9f2;
+  --farm-surface-tint: #0891b2;
+  --farm-surface-container: #e9edf5;
+  --farm-surface-container-low: #f0f3f9;
   --farm-surface-container-lowest: #ffffff;
-  --farm-surface-container-high: #e5e5e5;
-  --farm-surface-container-highest: #dfdfdf;
-  --farm-on-background: #1a1c1c;
-  --farm-on-surface: #1a1c1c;
-  --farm-on-surface-variant: #444749;
-  --farm-inverse-surface: #313030;
-  --farm-inverse-on-surface: #f3f0ef;
-  --farm-primary: #1a1c1c;
+  --farm-surface-container-high: #e2e8f2;
+  --farm-surface-container-highest: #d9e1ee;
+  --farm-on-background: #1a2337;
+  --farm-on-surface: #1a2337;
+  --farm-on-surface-variant: #4a566e;
+  --farm-inverse-surface: #1b1e3a;
+  --farm-inverse-on-surface: #f0f3f9;
+  --farm-primary: #16203a;
   --farm-on-primary: #ffffff;
-  --farm-primary-container: #e1e3e4;
-  --farm-on-primary-container: #454849;
-  --farm-inverse-primary: #c6c6c7;
-  --farm-secondary: #5c5f5f;
+  --farm-primary-container: #dde6f3;
+  --farm-on-primary-container: #33415e;
+  --farm-inverse-primary: #b8c6dd;
+  --farm-secondary: #51607e;
   --farm-on-secondary: #ffffff;
-  --farm-secondary-container: #e1e3e4;
-  --farm-on-secondary-container: #454849;
-  --farm-tertiary: #1a1c1c;
+  --farm-secondary-container: #dfeaf7;
+  --farm-on-secondary-container: #2f3e5c;
+  --farm-tertiary: #0e7490;
   --farm-on-tertiary: #ffffff;
-  --farm-tertiary-container: #ece0dd;
-  --farm-on-tertiary-container: #52443f;
-  --farm-error: #ba1a1a;
+  --farm-tertiary-container: #d3f1fa;
+  --farm-on-tertiary-container: #155e75;
+  --farm-error: #b91c1c;
   --farm-on-error: #ffffff;
-  --farm-error-container: #ffdad6;
-  --farm-on-error-container: #93000a;
-  --farm-outline: #74777a;
-  --farm-outline-variant: #c4c7c8;
+  --farm-error-container: #fee2e2;
+  --farm-on-error-container: #991b1b;
+  --farm-outline: #67748e;
+  --farm-outline-variant: #ccd5e4;
   --farm-accent-cyan: #0891b2;
   --farm-accent-amber: #d97706;
   --farm-accent-yellow: #a16207;
@@ -239,11 +239,15 @@
   --farm-accent-teal: #0d9488;
 
   --clinical-card-bg: #ffffff;
-  --clinical-card-border: #e4e4e4;
-  --clinical-card-border-hover: #c4c7c8;
-  --grid-line-subtle: #ececec;
-  --grid-line: #e0e2e3;
-  --scrollbar-thumb: #d4d4d4;
+  --clinical-card-border: #dfe5f0;
+  --clinical-card-border-hover: #aebfd9;
+  --card-grad-from: #ffffff;
+  --card-grad-to: #f7f9fd;
+  --panel-highlight: rgba(255, 255, 255, 0.75);
+  --page-grad-from: #e9eef8;
+  --grid-line-subtle: #e8edf5;
+  --grid-line: #dde4f0;
+  --scrollbar-thumb: #c4cfe0;
 }
 
 /* Dark palette (navy dashboard theme) */
@@ -295,6 +299,10 @@
   --clinical-card-bg: #1b1e3a;
   --clinical-card-border: rgba(255, 255, 255, 0.06);
   --clinical-card-border-hover: rgba(255, 255, 255, 0.14);
+  --card-grad-from: #1f2242;
+  --card-grad-to: #1b1e3a;
+  --panel-highlight: rgba(255, 255, 255, 0.04);
+  --page-grad-from: #15173352;
   --grid-line-subtle: #181b34;
   --grid-line: rgba(255, 255, 255, 0.05);
   --scrollbar-thumb: #2a2e55;
@@ -355,6 +363,8 @@
 @layer base {
   body {
     background-color: var(--farm-background);
+    background-image: linear-gradient(180deg, var(--page-grad-from) 0%, transparent 480px);
+    background-attachment: fixed;
     color: var(--farm-foreground);
     font-family: "Inter", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -388,11 +398,23 @@
 
 @utility clinical-card {
   background-color: var(--clinical-card-bg);
+  background-image: linear-gradient(165deg, var(--card-grad-from) 0%, var(--card-grad-to) 60%);
   border: 1px solid var(--clinical-card-border);
+  border-radius: 0.75rem;
   transition: border-color 0.15s ease;
   &:hover {
     border-color: var(--clinical-card-border-hover);
   }
+}
+
+/* Subtle top-light gradient overlay for panels; layers over any bg-* color. */
+@utility panel-gradient {
+  background-image: linear-gradient(165deg, var(--panel-highlight) 0%, transparent 55%);
+}
+
+/* Cyan-to-blue accent gradient for primary fills (bars, badges, CTAs). */
+@utility accent-gradient {
+  background-image: linear-gradient(135deg, var(--farm-accent-cyan) 0%, var(--farm-accent-blue) 100%);
 }
 
 @utility data-grid-bg {
@@ -426,6 +448,7 @@
 
 @utility nav-active {
   background-color: var(--farm-secondary-container);
+  background-image: linear-gradient(90deg, var(--panel-highlight) 0%, transparent 70%);
   color: var(--farm-primary);
   border-right: 2px solid var(--farm-primary);
 }

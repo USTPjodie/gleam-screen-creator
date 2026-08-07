@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { farm, unacknowledgedAlerts } from "@/lib/farm/dataset";
 import { Icon } from "./Icon";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -10,11 +11,13 @@ const links = [
 ] as const;
 
 export function TopNav() {
+  const pendingAlerts = unacknowledgedAlerts();
+
   return (
     <header className="sticky top-0 z-50 flex h-16 w-full items-center justify-between border-b border-outline-variant bg-background px-gutter">
       <div className="flex items-center gap-8">
         <span className="font-headline-md text-headline-md font-bold tracking-tighter text-primary">
-          POULTRY_AI
+          {farm.facility.name}
         </span>
         <nav className="hidden h-16 gap-stack-md md:flex">
           {links.map((l) => (
@@ -22,10 +25,10 @@ export function TopNav() {
               key={l.to}
               to={l.to}
               activeOptions={{ exact: l.to === "/" }}
-              className="flex items-center px-4 font-label-caps text-label-caps text-on-surface-variant transition-colors hover:bg-surface-container-highest"
+              className="my-3 flex items-center rounded-lg px-4 font-label-caps text-label-caps text-on-surface-variant transition-colors hover:bg-surface-container-highest"
               activeProps={{
                 className:
-                  "flex items-center px-4 font-label-caps text-label-caps text-primary border-b-2 border-primary",
+                  "my-3 flex items-center rounded-lg px-4 font-label-caps text-label-caps text-primary bg-surface-container-high panel-gradient",
               }}
             >
               {l.label}
@@ -41,23 +44,25 @@ export function TopNav() {
             className="absolute left-3 text-on-surface-variant"
           />
           <input
-            className="w-64 border border-outline-variant bg-surface-container-lowest py-1.5 pl-10 pr-4 font-data-md text-data-md text-on-surface transition-all focus:border-primary focus:outline-none"
+            className="w-64 rounded-lg border border-outline-variant bg-surface-container-lowest py-1.5 pl-10 pr-4 font-data-md text-data-md text-on-surface transition-all focus:border-primary focus:outline-none"
             placeholder="QUERY_SYSTEM..."
             type="text"
           />
         </div>
         <div className="flex gap-2">
           <ThemeToggle />
-          <button className="relative p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
+          <button className="relative rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="notifications" />
-            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 font-data-md text-[9px] leading-none text-on-error">
-              3
-            </span>
+            {pendingAlerts > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 font-data-md text-[9px] leading-none text-on-error">
+                {pendingAlerts}
+              </span>
+            )}
           </button>
-          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
+          <button className="rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="apps" />
           </button>
-          <button className="p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
+          <button className="rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
             <Icon name="account_circle" />
           </button>
         </div>

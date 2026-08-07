@@ -1,6 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
+import { areaPath, linePath } from "@/lib/farm/chart";
+import {
+  STATUS_TONE,
+  formatCompact,
+  formatConfidence,
+  formatDuration,
+  formatGrams,
+  formatMeasurement,
+  formatNumber,
+  formatSigned,
+  formatSignedPercent,
+  formatTime,
+  formatTimeUtc,
+  statusLabel,
+} from "@/lib/farm/format";
+import { getOperationsOverview } from "@/lib/farm/repository";
 
 const TITLE = "Command Center | POULTRY_AI Executive Operations";
 const DESC =
@@ -15,46 +31,68 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: DESC },
     ],
   }),
+  loader: () => getOperationsOverview(),
   component: Index,
 });
 
-const metrics = [
-  {
-    label: "AVG_WEIGHT (G)",
-    delta: "+1.2%",
-    deltaClass: "text-accent-teal",
-    value: "1,482.5",
-    sub: "STD_DEV: 12g",
-    path: "M0,30 L30,28 L60,32 L90,25 L120,20 L150,22 L180,15 L210,10 L240,12 L270,8 L300,5",
-  },
-  {
-    label: "WATER_INTAKE (L/H)",
-    delta: "NOMINAL",
-    deltaClass: "text-accent-teal",
-    value: "2,140.0",
-    sub: "EST_24H: 52k",
-    path: "M0,20 L30,22 L60,20 L90,21 L120,20 L150,19 L180,21 L210,20 L240,22 L270,20 L300,21",
-  },
-  {
-    label: "FEED_CONVERSION (FCR)",
-    delta: "-0.02",
-    deltaClass: "text-accent-teal",
-    value: "1.34",
-    sub: "TARGET: 1.36",
-    path: "M0,10 L30,12 L60,11 L90,14 L120,13 L150,16 L180,18 L210,22 L240,24 L270,22 L300,25",
-  },
-];
-
-const sensors = [
-  ["TEMP_ZONE_A", "24.2°C"],
-  ["HUMID_ZONE_A", "62.1%"],
-  ["CO2_LEVEL", "840 PPM"],
-  ["AMMONIA_NH3", "4.2 PPM"],
-  ["LIGHT_LUX", "45.0 LX"],
-  ["AIRFLOW_VEL", "1.8 M/S"],
-];
+const CHART_WIDTH = 800;
+const CHART_HEIGHT = 320;
+const SPARK_WIDTH = 300;
+const SPARK_HEIGHT = 40;
 
 function Index() {
+  const {
+    facility,
+    cycle,
+    platform,
+    summary,
+    activity,
+    weight,
+    flockStandardDeviationG,
+    water,
+    feed,
+    alerts,
+    cluster,
+    lastAnomaly,
+    minutesSinceLastAnomaly,
+    report,
+  } = Route.useLoaderData();
+
+  // Shared value axis so the actual series and the baseline stay comparable.
+  const scale = {
+    min: Math.min(...activity.series, activity.baseline),
+    max: Math.max(...activity.series, activity.baseline),
+    padding: 24,
+  };
+
+  const feedStatus = feed.fcr <= feed.fcrTarget ? "nominal" : "deviation";
+  const metrics = [
+    {
+      label: "AVG_WEIGHT (G)",
+      delta: formatSignedPercent(weight.variancePercent),
+      deltaClass: STATUS_TONE[weight.status].text,
+      value: formatGrams(weight.actualAvgG, false),
+      sub: `STD_DEV: ${flockStandardDeviationG}g`,
+      series: weight.curve.map((point) => point.actualG),
+    },
+    {
+      label: "WATER_INTAKE (L/H)",
+      delta: statusLabel(water.status),
+      deltaClass: STATUS_TONE[water.status].text,
+      value: formatNumber(water.intakeLitresPerHour),
+      sub: `EST_24H: ${formatCompact(water.intakeLitresPerHour * 24)}`,
+      series: water.series,
+    },
+    {
+      label: "FEED_CONVERSION (FCR)",
+      delta: formatSigned(feed.fcrDelta),
+      deltaClass: STATUS_TONE[feedStatus].text,
+      value: feed.fcr.toFixed(2),
+      sub: `TARGET: ${feed.fcrTarget.toFixed(2)}`,
+      series: feed.series,
+    },
+  ];
+
   return (
     <AppShell>
       <section className="mb-stack-lg">
@@ -64,15 +102,21 @@ function Index() {
           </div>
           <div className="mb-2 flex items-center gap-2 font-label-caps text-label-caps text-on-surface-variant">
             <span className="h-2 w-2 animate-pulse rounded-full bg-accent-teal" />
-            EXECUTIVE_SUMMARY_ENGINE (LLM_v4.2)
+            EXECUTIVE_SUMMARY_ENGINE ({platform.llm})
           </div>
           <h1 className="max-w-4xl font-headline-sm text-headline-sm leading-relaxed text-on-surface">
-            Flock status is <span className="font-bold text-accent-cyan">Optimal</span>. No behavioral
-            anomalies detected in last 12 hours. Weight gain is{" "}
-            <span className="text-accent-cyan">+2%</span> above breed target. Environmental parameters
-            in{" "}
+            Flock status is{" "}
+            <span className="font-bold text-accent-cyan">
+              {summary.status.charAt(0).toUpperCase() + summary.status.slice(1)}
+            </span>
+            . Last anomaly ({lastAnomaly.label}) logged{" "}
+            {formatDuration(minutesSinceLastAnomaly)} ago. Weight gain is{" "}
+            <span className="text-accent-cyan">
+              {formatSignedPercent(weight.variancePercent)}
+            </span>{" "}
+            versus breed standard on day {cycle.day}. Environmental parameters in{" "}
             <span className="underline decoration-outline-variant underline-offset-4">
-              House 01-04
+              {facility.houseRange}
             </span>{" "}
             are strictly within biological bounds.
           </h1>
@@ -81,13 +125,17 @@ function Index() {
               <span className="font-label-caps text-label-caps text-on-surface-variant">
                 CONFIDENCE_SCORE
               </span>
-              <span className="font-data-md text-data-md text-primary">0.992</span>
+              <span className="font-data-md text-data-md text-primary">
+                {formatConfidence(summary.confidence)}
+              </span>
             </div>
             <div className="flex flex-col">
               <span className="font-label-caps text-label-caps text-on-surface-variant">
                 LAST_SCAN
               </span>
-              <span className="font-data-md text-data-md text-primary">14:02:11 UTC</span>
+              <span className="font-data-md text-data-md text-primary">
+                {formatTimeUtc(report.lastScanAt, true)}
+              </span>
             </div>
           </div>
         </div>
@@ -101,7 +149,10 @@ function Index() {
                 REAL_TIME_ACTIVITY_INDEX
               </h2>
               <div className="mt-1 font-headline-md text-headline-md text-primary">
-                482.4 <span className="text-sm font-normal text-on-surface-variant">IDX</span>
+                {formatNumber(activity.value, 1)}{" "}
+                <span className="text-sm font-normal text-on-surface-variant">
+                  {activity.unit}
+                </span>
               </div>
             </div>
             <div className="flex gap-4">
@@ -112,7 +163,7 @@ function Index() {
               <div className="flex items-center gap-2">
                 <span className="h-0.5 w-3 border-t border-dashed bg-outline-variant" />
                 <span className="font-label-caps text-[10px] text-on-surface-variant">
-                  BASELINE
+                  BASELINE {formatNumber(activity.baseline)}
                 </span>
               </div>
             </div>
@@ -126,23 +177,28 @@ function Index() {
             <svg
               className="h-full w-full text-accent-cyan"
               preserveAspectRatio="none"
-              viewBox="0 0 800 320"
+              viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
             >
               <path
-                d="M0,160 Q100,150 200,170 T400,165 T600,155 T800,160"
+                d={linePath(
+                  [activity.baseline, activity.baseline],
+                  CHART_WIDTH,
+                  CHART_HEIGHT,
+                  scale,
+                )}
                 className="stroke-outline"
                 fill="none"
                 strokeDasharray="4,2"
                 strokeWidth="1.5"
               />
               <path
-                d="M0,180 L50,170 L100,190 L150,160 L200,150 L250,155 L300,140 L350,145 L400,130 L450,135 L500,120 L550,125 L600,110 L650,115 L700,105 L750,110 L800,100"
+                d={linePath(activity.series, CHART_WIDTH, CHART_HEIGHT, scale)}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
               />
               <path
-                d="M0,180 L50,170 L100,190 L150,160 L200,150 L250,155 L300,140 L350,145 L400,130 L450,135 L500,120 L550,125 L600,110 L650,115 L700,105 L750,110 L800,100 L800,320 L0,320 Z"
+                d={areaPath(activity.series, CHART_WIDTH, CHART_HEIGHT, scale)}
                 fill="url(#chartGrad)"
               />
               <defs>
@@ -154,15 +210,13 @@ function Index() {
             </svg>
           </div>
           <div className="mt-4 flex justify-between font-data-md text-[11px] text-on-surface-variant">
-            <span>T-24H</span>
-            <span>T-18H</span>
-            <span>T-12H</span>
-            <span>T-06H</span>
-            <span>CURRENT</span>
+            {activity.axisLabels.map((label) => (
+              <span key={label}>{label}</span>
+            ))}
           </div>
         </div>
 
-        <div className="clinical-card col-span-12 flex flex-col lg:col-span-4">
+        <div className="clinical-card col-span-12 flex flex-col overflow-hidden lg:col-span-4">
           <div className="flex items-center justify-between border-b border-outline-variant p-6">
             <h2 className="font-label-caps text-label-caps text-on-surface-variant">
               SYSTEM_ALERTS
@@ -170,69 +224,82 @@ function Index() {
             <Icon name="filter_list" size={16} />
           </div>
           <div className="flex-1 overflow-y-auto">
-            <div className="alert-critical border-b border-l-2 border-outline-variant/30 p-4">
-              <div className="flex items-start justify-between">
-                <span className="font-label-caps text-[10px] font-bold text-error">
-                  CRITICAL_EVENT
-                </span>
-                <span className="font-data-md text-[10px] text-on-surface-variant">13:54:02</span>
-              </div>
-              <div className="mt-1 font-body-md text-body-md text-on-surface">
-                Activity Drop detected in House 2. Sensor redundancy verified.
-              </div>
-              <div className="mt-2 flex gap-2">
-                <button className="border border-outline-variant px-2 py-0.5 font-label-caps text-[9px] text-on-surface transition-colors hover:bg-surface-container">
-                  INVESTIGATE
-                </button>
-                <button className="border border-outline-variant px-2 py-0.5 font-label-caps text-[9px] text-on-surface-variant transition-colors hover:bg-surface-container">
-                  DISMISS
-                </button>
-              </div>
-            </div>
-            {[
-              [
-                "DEVIATION_LOG",
-                "13:22:15",
-                "Weight Deviation (+1.4g) House 1. Sampling rate adjusted.",
-              ],
-              ["ENV_REPORT", "12:10:45", "Humidity sensor H-09 recalibrated automatically."],
-              ["FEED_CYCLE", "11:00:00", "Cycle 04 completed. Consumed: 1,420kg."],
-            ].map(([kind, time, body]) => (
-              <div
-                key={kind}
-                className="border-b border-l-2 border-outline-variant/30 border-l-on-surface-variant/30 p-4"
-              >
-                <div className="flex items-start justify-between">
-                  <span className="font-label-caps text-[10px] text-on-surface-variant">
-                    {kind}
-                  </span>
-                  <span className="font-data-md text-[10px] text-on-surface-variant">{time}</span>
+            {alerts.map((alert) => {
+              const tone = STATUS_TONE[alert.severity];
+              const isCritical = alert.severity === "critical";
+              return (
+                <div
+                  key={alert.id}
+                  className={`border-b border-l-2 border-outline-variant/30 p-4 ${
+                    isCritical ? "alert-critical" : "border-l-on-surface-variant/30"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <span
+                      className={`font-label-caps text-[10px] ${
+                        isCritical ? `font-bold ${tone.text}` : "text-on-surface-variant"
+                      }`}
+                    >
+                      {alert.kind}
+                    </span>
+                    <span className="font-data-md text-[10px] text-on-surface-variant">
+                      {formatTime(alert.raisedAt)}
+                    </span>
+                  </div>
+                  <div
+                    className={`mt-1 font-body-md text-body-md ${
+                      isCritical ? "text-on-surface" : "text-on-surface-variant"
+                    }`}
+                  >
+                    {alert.message}
+                  </div>
+                  {alert.actions && (
+                    <div className="mt-2 flex gap-2">
+                      {alert.actions.map((action, i) => (
+                        <button
+                          key={action}
+                          className={`rounded-md border border-outline-variant px-2 py-0.5 font-label-caps text-[9px] transition-colors hover:bg-surface-container ${
+                            i === 0 ? "text-on-surface" : "text-on-surface-variant"
+                          }`}
+                        >
+                          {action}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-1 font-body-md text-body-md text-on-surface-variant">
-                  {body}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-gutter md:grid-cols-2 lg:grid-cols-3">
-        {metrics.map((m) => (
-          <div key={m.label} className="clinical-card p-4">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="clinical-card p-4">
             <div className="mb-4 flex items-start justify-between">
               <span className="font-label-caps text-label-caps text-on-surface-variant">
-                {m.label}
+                {metric.label}
               </span>
-              <span className={`font-data-md text-data-md ${m.deltaClass}`}>{m.delta}</span>
+              <span className={`font-data-md text-data-md ${metric.deltaClass}`}>
+                {metric.delta}
+              </span>
             </div>
             <div className="mb-4 flex items-baseline gap-2">
-              <span className="font-data-lg text-data-lg text-primary">{m.value}</span>
-              <span className="font-data-md text-on-surface-variant">{m.sub}</span>
+              <span className="font-data-lg text-data-lg text-primary">{metric.value}</span>
+              <span className="font-data-md text-on-surface-variant">{metric.sub}</span>
             </div>
             <div className="h-10 w-full">
-              <svg className="h-full w-full overflow-visible" viewBox="0 0 300 40">
-                <path d={m.path} className="stroke-accent-cyan" fill="none" strokeWidth="1.5" />
+              <svg
+                className="h-full w-full overflow-visible"
+                viewBox={`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`}
+              >
+                <path
+                  d={linePath(metric.series, SPARK_WIDTH, SPARK_HEIGHT, { padding: 6 })}
+                  className="stroke-accent-cyan"
+                  fill="none"
+                  strokeWidth="1.5"
+                />
               </svg>
             </div>
           </div>
@@ -241,14 +308,31 @@ function Index() {
 
       <section className="mt-stack-lg">
         <div className="clinical-card p-6">
-          <h2 className="mb-6 font-label-caps text-label-caps text-on-surface-variant">
-            SENSOR_CLUSTER_STATUS
-          </h2>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="font-label-caps text-label-caps text-on-surface-variant">
+              SENSOR_CLUSTER_STATUS
+            </h2>
+            <span className="font-data-md text-[10px] text-on-surface-variant">
+              {cluster.houseLabel.toUpperCase()}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-stack-md md:grid-cols-4 lg:grid-cols-6">
-            {sensors.map(([label, value]) => (
-              <div key={label} className="rounded border border-outline-variant/20 p-3">
-                <div className="font-label-caps text-[10px] text-on-surface-variant">{label}</div>
-                <div className="mt-1 font-data-md text-data-md text-primary">{value}</div>
+            {cluster.readings.map((reading) => (
+              <div
+                key={reading.code}
+                className="rounded-lg border border-outline-variant/20 panel-gradient p-3"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${STATUS_TONE[reading.status].dot}`}
+                  />
+                  <span className="font-label-caps text-[10px] text-on-surface-variant">
+                    {reading.code}
+                  </span>
+                </div>
+                <div className="mt-1 font-data-md text-data-md text-primary">
+                  {formatMeasurement(reading.value, reading.unit)}
+                </div>
               </div>
             ))}
           </div>
