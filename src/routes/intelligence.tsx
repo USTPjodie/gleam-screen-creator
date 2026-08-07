@@ -26,7 +26,7 @@ import {
   type FeedbackAlert,
 } from "@/lib/intelligence";
 
-const TITLE = "Intelligence OS | POULTRY_AI Monitoring Report";
+const TITLE = "Intelligence OS | CereBroiler Monitoring Report";
 const DESC =
   "Formal auto-generated monitoring report on the current flock telemetry with grounded sensor, visual and reference evidence.";
 
@@ -128,14 +128,14 @@ function IntelligencePage() {
       <section className="flex flex-1 flex-col overflow-hidden bg-background">
         <div className="flex-1 overflow-y-auto px-6 py-10">
           <div className="mx-auto max-w-4xl">
-            <h1 className="sr-only">POULTRY_AI Intelligence Monitoring Report</h1>
+            <h1 className="sr-only">CereBroiler Intelligence Monitoring Report</h1>
 
             <article className="overflow-hidden rounded-xl border border-outline-variant clinical-card">
               {/* Report masthead */}
               <header className="border-b border-outline-variant p-8">
                 <div className="mb-6 flex items-center justify-between">
                   <span className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
-                    {facility.name} // FARM_OS V{platform.appVersion}
+                    {facility.name}
                   </span>
                   <span
                     className={`rounded-md border border-outline-variant bg-surface-container-high px-2 py-1 font-label-caps text-[9px] uppercase tracking-widest ${platformTone.text}`}

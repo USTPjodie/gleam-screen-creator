@@ -244,6 +244,8 @@ export interface SystemAlert {
   raisedAt: string;
   message: string;
   acknowledged: boolean;
+  acknowledgedAt?: string | null;
+  sourceIncidentId?: string | null;
   /** Actions offered on the alert card. */
   actions?: string[];
 }

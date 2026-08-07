@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
@@ -13,13 +13,14 @@ import {
   formatPercent,
   formatScore,
   formatSignedPercent,
+  formatTimeUtc,
   statusLabel,
   timelinePosition,
   timelineTicks,
 } from "@/lib/farm/format";
 import { getVisualTelemetry } from "@/lib/farm/repository";
 
-const TITLE = "Visual Telemetry | POULTRY_AI Live Feeds";
+const TITLE = "Visual Telemetry | CereBroiler Live Feeds";
 const DESC =
   "Live 4K house feed with behavior monitoring, 3D-camera weight estimation, spatial distribution and a 24h anomaly timeline.";
 
@@ -63,6 +64,49 @@ function VisualsPage() {
   } = Route.useLoaderData();
   const [mode, setMode] = useState<FeedMode>("behavior");
   const [gridOverlay, setGridOverlay] = useState(false);
+  const [hoveredEvent, setHoveredEvent] = useState<typeof timeline.events[number] | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<typeof timeline.events[number] | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const [feedLoaded, setFeedLoaded] = useState(false);
+  const [feedError, setFeedError] = useState(false);
+
+  /** Snap a click position on the timeline to the nearest event. */
+  const handleTimelineClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const clickPct = ((e.clientX - rect.left) / rect.width) * 100;
+      // Find closest event to click position
+      let closest: typeof timeline.events[number] | null = null;
+      let closestDist = Infinity;
+      for (const evt of timeline.events) {
+        const evtPct = parseFloat(timelinePosition(evt.at, timeline.windowStart, timeline.windowEnd));
+        const dist = Math.abs(evtPct - clickPct);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closest = evt;
+        }
+      }
+      // Only snap if within 5% of an event
+      if (closest && closestDist < 5) {
+        setSelectedEvent((prev) => (prev?.id === closest!.id ? null : closest));
+      } else {
+        setSelectedEvent(null);
+      }
+    },
+    [timeline.events, timeline.windowStart, timeline.windowEnd],
+  );
+
+  const activeEvent = hoveredEvent ?? selectedEvent;
+
+  // Daily weight check: simulated next check at a fixed time (e.g. 06:00 next day)
+  const lastWeighIn = "2024-05-24T06:00:00.000Z";
+  const nextWeighIn = "2024-05-25T06:00:00.000Z";
+  const now = new Date("2024-05-24T16:30:00.000Z"); // dataset AS_OF
+  const hoursUntilNext = Math.max(
+    0,
+    Math.round((new Date(nextWeighIn).getTime() - now.getTime()) / 3_600_000),
+  );
 
   const movementTone = STATUS_TONE[behavior.movementStatus];
   const huddlingTone = STATUS_TONE[behavior.huddlingStatus];
@@ -77,15 +121,6 @@ function VisualsPage() {
             <h1 className="font-data-md text-data-md text-on-surface">LIVE_FEED: {camera.id}</h1>
           </div>
           <div className="h-4 w-px bg-outline-variant" />
-          <span className="font-data-md text-data-md text-on-surface-variant">
-            {camera.houseLabel.toUpperCase()}
-          </span>
-          <span className="font-data-md text-data-md text-on-surface-variant">
-            FPS: {camera.fps.toFixed(1)}
-          </span>
-          <span className="font-data-md text-data-md text-on-surface-variant">
-            RES: {camera.resolution}
-          </span>
         </div>
         <div className="flex gap-2">
           <button
@@ -123,12 +158,49 @@ function VisualsPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1 overflow-hidden bg-[#070708]">
+          {/* CCTV feed image */}
+          {!feedLoaded && !feedError && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#070708]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-cyan border-t-transparent" />
+              <span className="font-label-caps text-[10px] text-on-surface-variant">CONNECTING TO FEED...</span>
+            </div>
+          )}
+          {feedError && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#070708]">
+              <Icon name="videocam_off" size={40} className="text-on-surface-variant" />
+              <span className="font-label-caps text-[10px] text-on-surface-variant">FEED UNAVAILABLE</span>
+            </div>
+          )}
           <img
             src={camera.stillUrl}
             alt="High-angle CCTV view of a modern poultry house interior under clinical lighting"
-            className="absolute inset-0 h-full w-full object-cover opacity-80"
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${feedLoaded ? "opacity-90" : "opacity-0"}`}
+            onLoad={() => setFeedLoaded(true)}
+            onError={() => setFeedError(true)}
           />
           <div className="absolute inset-0 hud-scanline" />
+
+          {/* Live feed status bar */}
+          <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-2">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-error" />
+                <span className="font-label-caps text-[10px] font-bold text-white">LIVE</span>
+              </span>
+              <span className="font-data-md text-[10px] text-white/70">
+                {camera.id}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-data-md text-[10px] text-white/70">
+                {new Date().toLocaleString("en-US", { hour12: false })}
+              </span>
+              <span className="flex items-center gap-1">
+                <Icon name="signal_cellular_alt" size={14} className="text-accent-teal" />
+                <span className="font-label-caps text-[9px] text-accent-teal">SIGNAL</span>
+              </span>
+            </div>
+          </div>
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox="0 0 1000 600"
@@ -182,35 +254,10 @@ function VisualsPage() {
               </>
             ) : (
               <>
-                <text fill={OVERLAY_DEPTH} fontFamily="JetBrains Mono" fontSize="9" x="20" y="580">
-                  DEPTH_MAP: STEREO_3D | {pointDensity} PTS/FRAME
+                {/* Daily weight check overlay — minimal, not continuous */}
+                <text fill={OVERLAY_DEPTH} fontFamily="JetBrains Mono" fontSize="11" x="20" y="580">
+                  DAILY_WEIGH_IN | LAST: 06:00 UTC | NEXT: ~{hoursUntilNext}H
                 </text>
-                {detections.map((detection) => {
-                  const stroke = detection.flag ? OVERLAY_WARN : OVERLAY_DEPTH;
-                  return (
-                    <g key={detection.id}>
-                      <rect
-                        fill="none"
-                        height={detection.box.height}
-                        stroke={stroke}
-                        strokeWidth="1"
-                        width={detection.box.width}
-                        x={detection.box.x}
-                        y={detection.box.y}
-                      />
-                      <text
-                        fill={stroke}
-                        fontFamily="JetBrains Mono"
-                        fontSize={detection.flag ? "9" : "8"}
-                        x={detection.box.x}
-                        y={detection.box.y - 5}
-                      >
-                        ID: {detection.id} | EST: {formatKilograms(detection.estimatedWeightG)} [
-                        {detection.flag ?? formatPercent(detection.weightConfidence * 100)}]
-                      </text>
-                    </g>
-                  );
-                })}
               </>
             )}
             {gridOverlay && (
@@ -364,65 +411,91 @@ function VisualsPage() {
             </div>
           ) : (
             <div className="space-y-4 p-4">
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="font-label-caps text-[10px] text-on-surface-variant">
-                    AVG_EST_WEIGHT
+              {/* Daily weigh-in result */}
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-label-caps text-[10px] text-primary">
+                    DAILY_WEIGH_IN
                   </p>
                   <span
                     className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
                       STATUS_TONE[weight.status].chip
                     }`}
                   >
-                    {formatSignedPercent(weight.variancePercent)} VS STD
+                    {statusLabel(weight.status).toUpperCase()}
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <p className="font-data-lg text-data-lg text-primary">
                     {formatNumber(weight.actualAvgG)}g
                   </p>
-                  <p className="font-data-md text-data-md text-on-surface-variant">
-                    DAY {cycleDay}
+                  <p className="font-data-md text-[11px] text-on-surface-variant">
+                    {formatSignedPercent(weight.variancePercent)} vs std
                   </p>
                 </div>
-                {/* Bar tracks how far the grow-out has progressed. */}
-                <div className="h-1 w-full overflow-hidden rounded-full bg-outline-variant">
-                  <div
-                    className="h-full rounded-full accent-gradient"
-                    style={{ width: barWidth(cycleDay, cycleTotalDays) }}
-                  />
-                </div>
+                <p className="mt-1 font-data-md text-[10px] text-on-surface-variant">
+                  Standard: {formatNumber(weight.standardG)}g
+                </p>
               </div>
+
+              {/* Check schedule */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <p className="font-label-caps text-[10px] text-on-surface-variant">
-                    EST_CONFIDENCE
+                    LAST_CHECK
+                  </p>
+                  <span className="rounded-md bg-accent-teal/10 px-1.5 py-0.5 text-[9px] font-bold text-accent-teal">
+                    COMPLETED
+                  </span>
+                </div>
+                <p className="font-data-md text-data-md text-on-surface">
+                  {new Date(lastWeighIn).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })} UTC
+                </p>
+                <p className="font-data-md text-[10px] text-on-surface-variant">
+                  {formatNumber(weight.sampleSize)} birds sampled
+                </p>
+              </div>
+
+              {/* Next check countdown */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-label-caps text-[10px] text-on-surface-variant">
+                    NEXT_CHECK
                   </p>
                   <span className="rounded-md bg-on-surface-variant/10 px-1.5 py-0.5 text-[9px] font-bold text-on-surface-variant">
-                    SENSOR_STABLE
+                    SCHEDULED
                   </span>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <p className="font-data-lg text-data-lg text-primary">
-                    {formatPercent(weight.estimationConfidencePercent, 0)}
+                  <p className="font-data-lg text-data-lg text-accent-cyan">
+                    ~{hoursUntilNext}h
                   </p>
-                  <p className="font-data-md text-data-md text-on-surface-variant">
-                    {formatNumber(camera.birdsScanned)} BIRDS SCANNED
+                  <p className="font-data-md text-[11px] text-on-surface-variant">
+                    06:00 UTC daily
                   </p>
                 </div>
+                {/* Progress bar showing time elapsed until next check */}
+                <div className="h-1 w-full overflow-hidden rounded-full bg-outline-variant">
+                  <div
+                    className="h-full rounded-full bg-accent-cyan"
+                    style={{ width: `${Math.max(0, 100 - (hoursUntilNext / 24) * 100)}%` }}
+                  />
+                </div>
               </div>
+
+              {/* Scale info */}
               <div className="rounded-lg border border-outline-variant bg-surface-container panel-gradient p-3">
                 <p className="mb-2 font-label-caps text-[10px] text-outline-variant">
-                  3D_DEPTH_CAMERA
+                  WEIGHING_SYSTEM
                 </p>
                 <div className="flex items-center gap-3">
-                  <Icon name="view_in_ar" className="text-accent-cyan" />
+                  <Icon name="scale" className="text-accent-teal" />
                   <div>
                     <span className="block font-data-md text-data-md text-on-surface">
-                      STEREO_DEPTH: {camera.online ? "ONLINE" : "OFFLINE"}
+                      AUTO_PLATFORM_SCALE
                     </span>
                     <span className="block font-data-md text-[10px] text-on-surface-variant">
-                      POINT_DENSITY: {pointDensity}/FRAME
+                      1x DAILY @ 06:00 UTC
                     </span>
                   </div>
                 </div>
@@ -454,7 +527,7 @@ function VisualsPage() {
         </aside>
       </div>
 
-      <div className="flex h-32 flex-col gap-3 border-t border-outline-variant bg-surface-container-lowest px-6 py-4">
+      <div className="flex h-40 flex-col gap-3 border-t border-outline-variant bg-surface-container-lowest px-6 py-4">
         <div className="flex items-center justify-between">
           <h4 className="font-label-caps text-label-caps text-on-surface-variant">
             ANOMALY_TIMELINE: 24H_HISTORY
@@ -468,7 +541,12 @@ function VisualsPage() {
             </span>
           </div>
         </div>
-        <div className="relative flex-1 cursor-pointer overflow-hidden rounded-lg border border-outline-variant bg-surface-container panel-gradient">
+        <div
+          ref={timelineRef}
+          onClick={handleTimelineClick}
+          className="relative flex-1 cursor-pointer overflow-visible rounded-lg border border-outline-variant bg-surface-container panel-gradient"
+        >
+          {/* Time ticks */}
           <div className="absolute inset-x-0 bottom-0 flex justify-between px-2 py-1">
             {timelineTicks(timeline.windowStart, timeline.windowEnd).map((tick) => (
               <span key={tick} className="font-data-md text-[9px] text-outline-variant">
@@ -476,6 +554,7 @@ function VisualsPage() {
               </span>
             ))}
           </div>
+          {/* Cursor */}
           <div
             className="absolute bottom-0 top-0 z-10 w-px bg-accent-cyan"
             style={{
@@ -484,20 +563,66 @@ function VisualsPage() {
           >
             <div className="absolute top-0 h-2 w-2 -translate-x-1/2 rotate-45 bg-accent-cyan" />
           </div>
-          {timeline.events.map((event) => (
+          {/* Events */}
+          {timeline.events.map((event) => {
+            const isActive = activeEvent?.id === event.id;
+            return (
+              <div
+                key={event.id}
+                className={`absolute top-1/4 h-1/2 w-1.5 rounded-full transition-all ${
+                  isActive ? "w-2 scale-y-150 z-20" : "hover:scale-y-125"
+                } ${
+                  event.severity === "critical"
+                    ? "border border-error bg-error-container"
+                    : "border border-accent-amber bg-accent-amber/30"
+                }`}
+                style={{
+                  left: timelinePosition(event.at, timeline.windowStart, timeline.windowEnd),
+                }}
+                onMouseEnter={() => setHoveredEvent(event)}
+                onMouseLeave={() => setHoveredEvent(null)}
+              />
+            );
+          })}
+          {/* Tooltip popup */}
+          {activeEvent && (
             <div
-              key={event.id}
-              title={`${event.label} — ${statusLabel(event.severity)}`}
-              className={`absolute top-1/4 h-1/2 w-1 transition-transform hover:scale-y-150 ${
-                event.severity === "critical"
-                  ? "border border-error bg-error-container"
-                  : "border border-accent-amber bg-accent-amber/30"
-              }`}
+              className="absolute z-30 -translate-x-1/2 rounded-lg border border-outline-variant bg-surface-container-lowest shadow-xl panel-gradient px-3 py-2 pointer-events-none"
               style={{
-                left: timelinePosition(event.at, timeline.windowStart, timeline.windowEnd),
+                left: timelinePosition(activeEvent.at, timeline.windowStart, timeline.windowEnd),
+                bottom: "100%",
+                marginBottom: "8px",
               }}
-            />
-          ))}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    activeEvent.severity === "critical" ? "bg-error" : "bg-accent-amber"
+                  }`}
+                />
+                <span className="font-label-caps text-[10px] font-bold text-on-surface">
+                  {activeEvent.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-data-md text-[10px] text-on-surface-variant">
+                  {formatTimeUtc(activeEvent.at)}
+                </span>
+                <span
+                  className={`rounded px-1.5 py-0.5 font-label-caps text-[9px] font-bold ${
+                    activeEvent.severity === "critical"
+                      ? "bg-error/10 text-error"
+                      : "bg-accent-amber/10 text-accent-amber"
+                  }`}
+                >
+                  {statusLabel(activeEvent.severity).toUpperCase()}
+                </span>
+              </div>
+              <span className="mt-1 block font-data-md text-[9px] text-outline">
+                ID: {activeEvent.id}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </AppShell>

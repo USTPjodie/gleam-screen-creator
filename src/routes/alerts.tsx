@@ -2,12 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
-import {
-  type ApiAlert,
-  acknowledgeAlert,
-  dismissAlert,
-  fetchAlerts,
-} from "@/lib/api-client";
+import { acknowledgeAlertFn, dismissAlertFn, getAlerts } from "@/lib/farm/repository";
 import {
   STATUS_TONE,
   formatDateTimeUtc,
@@ -15,7 +10,7 @@ import {
 } from "@/lib/farm/format";
 import type { StatusLevel } from "@/lib/farm/types";
 
-const TITLE = "System Alerts | POULTRY_AI";
+const TITLE = "System Alerts | CereBroiler";
 const DESC = "Real-time alert stream with acknowledgement and dismissal controls.";
 
 export const Route = createFileRoute("/alerts")({
@@ -34,7 +29,7 @@ export const Route = createFileRoute("/alerts")({
 /*  Severity filter options                                                   */
 /* -------------------------------------------------------------------------- */
 
-const SEVERITIES = ["all", "critical", "warning", "deviation", "nominal", "optimal"] as const;
+const SEVERITIES = ["all", "critical", "warning", "optimal"] as const;
 const ACK_FILTERS = [
   { value: "all", label: "ALL" },
   { value: "false", label: "PENDING" },
@@ -45,8 +40,20 @@ const ACK_FILTERS = [
 /*  Page                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/** Shape returned by the getAlerts server function. */
+interface AlertRow {
+  id: string;
+  kind: string;
+  severity: string;
+  raisedAt: string;
+  message: string;
+  acknowledged: boolean;
+  acknowledgedAt: string | null;
+  sourceIncidentId: string | null;
+}
+
 function AlertsPage() {
-  const [alerts, setAlerts] = useState<ApiAlert[]>([]);
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [severity, setSeverity] = useState<string>("all");
@@ -57,10 +64,10 @@ function AlertsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const filters: Record<string, unknown> = {};
+      const filters: { severity?: string; acknowledged?: boolean } = {};
       if (severity !== "all") filters.severity = severity;
       if (ackFilter !== "all") filters.acknowledged = ackFilter === "true";
-      const data = await fetchAlerts(filters as { severity?: string; acknowledged?: boolean });
+      const data = await getAlerts({ data: filters } as never);
       setAlerts(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load alerts");
@@ -76,7 +83,7 @@ function AlertsPage() {
   const handleAcknowledge = async (id: string) => {
     setMutating((prev) => ({ ...prev, [id]: true }));
     try {
-      const result = await acknowledgeAlert(id);
+      const result = await acknowledgeAlertFn({ data: { id } } as never);
       if (result.updated) {
         setAlerts((prev) =>
           prev.map((a) =>
@@ -96,7 +103,7 @@ function AlertsPage() {
   const handleDismiss = async (id: string) => {
     setMutating((prev) => ({ ...prev, [id]: true }));
     try {
-      const result = await dismissAlert(id);
+      const result = await dismissAlertFn({ data: { id } } as never);
       if (result.updated) {
         setAlerts((prev) => prev.filter((a) => a.id !== id));
       }

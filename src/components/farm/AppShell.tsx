@@ -44,7 +44,7 @@ export function AppShell({
         className={
           bare
             ? `relative flex h-[calc(100vh-64px)] flex-col overflow-hidden bg-background transition-[margin] duration-200 ${mainOffset}`
-            : `px-gutter pb-16 pt-4 data-grid-bg transition-[margin] duration-200 ${mainOffset}`
+            : `px-gutter pb-4 pt-4 data-grid-bg transition-[margin] duration-200 ${mainOffset}`
         }
       >
         {children}

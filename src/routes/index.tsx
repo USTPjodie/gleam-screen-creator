@@ -4,7 +4,6 @@ import { Icon } from "@/components/farm/Icon";
 import { areaPath, linePath } from "@/lib/farm/chart";
 import {
   STATUS_TONE,
-  formatCompact,
   formatConfidence,
   formatDuration,
   formatGrams,
@@ -14,11 +13,10 @@ import {
   formatSignedPercent,
   formatTime,
   formatTimeUtc,
-  statusLabel,
 } from "@/lib/farm/format";
 import { getOperationsOverview } from "@/lib/farm/repository";
 
-const TITLE = "Command Center | POULTRY_AI Executive Operations";
+const TITLE = "Command Center | CereBroiler Executive Operations";
 const DESC =
   "Executive operations console: LLM flock summary, real-time activity index, alerts and sensor cluster status.";
 
@@ -49,7 +47,6 @@ function Index() {
     activity,
     weight,
     flockStandardDeviationG,
-    water,
     feed,
     alerts,
     cluster,
@@ -74,14 +71,6 @@ function Index() {
       value: formatGrams(weight.actualAvgG, false),
       sub: `STD_DEV: ${flockStandardDeviationG}g`,
       series: weight.curve.map((point) => point.actualG),
-    },
-    {
-      label: "WATER_INTAKE (L/H)",
-      delta: statusLabel(water.status),
-      deltaClass: STATUS_TONE[water.status].text,
-      value: formatNumber(water.intakeLitresPerHour),
-      sub: `EST_24H: ${formatCompact(water.intakeLitresPerHour * 24)}`,
-      series: water.series,
     },
     {
       label: "FEED_CONVERSION (FCR)",

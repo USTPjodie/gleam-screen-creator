@@ -2,17 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
-import {
-  type NotificationPreference,
-  fetchNotificationPreferences,
-  saveNotificationPreferences,
-} from "@/lib/api-client";
-import { STATUS_TONE } from "@/lib/farm/format";
-import type { StatusLevel } from "@/lib/farm/types";
 import { useAuth } from "@/lib/auth-context";
 
-const TITLE = "Settings | POULTRY_AI";
-const DESC = "System configuration — notification delivery preferences and channel settings.";
+const TITLE = "Settings | CereBroiler";
+const DESC = "System configuration and application preferences.";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -27,26 +20,103 @@ export const Route = createFileRoute("/settings")({
 });
 
 /* -------------------------------------------------------------------------- */
+/*  Types                                                                     */
+/* -------------------------------------------------------------------------- */
+
+interface ToggleSetting {
+  key: string;
+  label: string;
+  description: string;
+  icon: string;
+  defaultValue: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Constants                                                                 */
 /* -------------------------------------------------------------------------- */
 
-const CHANNEL_ICONS: Record<string, string> = {
-  in_app: "notifications_active",
-  email: "email",
-  push: "smartphone",
-  sms: "chat",
-};
+const DASHBOARD_TOGGLES: ToggleSetting[] = [
+  {
+    key: "show_sparklines",
+    label: "Sparkline Charts",
+    description: "Show trend sparklines on metric cards",
+    icon: "show_chart",
+    defaultValue: true,
+  },
+  {
+    key: "show_sensor_cluster",
+    label: "Sensor Cluster",
+    description: "Display sensor readings panel on dashboard",
+    icon: "sensors",
+    defaultValue: true,
+  },
+  {
+    key: "show_alerts",
+    label: "Active Alerts",
+    description: "Show alert cards on the dashboard",
+    icon: "notifications_active",
+    defaultValue: true,
+  },
+];
 
-const CHANNEL_LABELS: Record<string, string> = {
-  in_app: "IN_APP",
-  email: "EMAIL",
-  push: "PUSH",
-  sms: "SMS",
-};
+const ANALYTICS_TOGGLES: ToggleSetting[] = [
+  {
+    key: "show_growth_curve",
+    label: "Growth Curve",
+    description: "Display growth curve chart on analytics page",
+    icon: "insights",
+    defaultValue: true,
+  },
+  {
+    key: "show_volumetric",
+    label: "Volumetric Data",
+    description: "Show volumetric analysis section",
+    icon: "science",
+    defaultValue: true,
+  },
+];
 
-const SEVERITIES: StatusLevel[] = ["optimal", "nominal", "deviation", "warning", "critical"];
+const DISPLAY_TOGGLES: ToggleSetting[] = [
+  {
+    key: "compact_mode",
+    label: "Compact Mode",
+    description: "Reduce spacing and padding throughout the UI",
+    icon: "compress",
+    defaultValue: false,
+  },
+  {
+    key: "show_descriptions",
+    label: "Show Descriptions",
+    description: "Display descriptive subtitles under section headers",
+    icon: "description",
+    defaultValue: true,
+  },
+];
 
-const CHANNELS = ["in_app", "email", "push", "sms"];
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const STORAGE_KEY = "cerebroiler_settings";
+
+function loadSettings(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistSettings(settings: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    /* quota exceeded — silently ignore */
+  }
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                      */
@@ -54,57 +124,55 @@ const CHANNELS = ["in_app", "email", "push", "sms"];
 
 function SettingsPage() {
   const { user } = useAuth();
-  const [preferences, setPreferences] = useState<NotificationPreference[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [savingPrefs, setSavingPrefs] = useState(false);
-  const [prefsSaved, setPrefsSaved] = useState(false);
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const prefs = await fetchNotificationPreferences();
-      setPreferences(prefs);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load settings");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const [settings, setSettings] = useState<Record<string, boolean>>({});
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [language, setLanguage] = useState("English");
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const stored = loadSettings();
+    setSettings(stored);
+    const storedTheme = localStorage.getItem("theme") ?? "light";
+    setTheme(storedTheme === "dark" ? "dark" : "light");
+  }, []);
 
-  const handleTogglePref = (channel: string) => {
-    setPreferences((prev) =>
-      prev.map((p) =>
-        p.channel === channel ? { ...p, enabled: !p.enabled } : p,
-      ),
-    );
-    setPrefsSaved(false);
+  const getValue = useCallback(
+    (key: string, defaultValue: boolean) =>
+      key in settings ? settings[key] : defaultValue,
+    [settings],
+  );
+
+  const handleToggle = (key: string) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      persistSettings(next);
+      return next;
+    });
   };
 
-  const handleSeverityChange = (channel: string, severity: string) => {
-    setPreferences((prev) =>
-      prev.map((p) =>
-        p.channel === channel ? { ...p, minSeverity: severity } : p,
-      ),
-    );
-    setPrefsSaved(false);
-  };
-
-  const handleSavePrefs = async () => {
-    setSavingPrefs(true);
+  const handleThemeChange = (newTheme: "light" | "dark") => {
+    setTheme(newTheme);
+    const root = document.documentElement;
+    if (newTheme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
     try {
-      await saveNotificationPreferences(preferences);
-      setPrefsSaved(true);
-      setTimeout(() => setPrefsSaved(false), 3000);
+      localStorage.setItem("theme", newTheme);
     } catch {
-      setError("Failed to save preferences");
-    } finally {
-      setSavingPrefs(false);
+      /* ignore */
+    }
+  };
+
+  const handleReset = () => {
+    setSettings({});
+    persistSettings({});
+    setTheme("light");
+    document.documentElement.classList.remove("dark");
+    try {
+      localStorage.removeItem("theme");
+    } catch {
+      /* ignore */
     }
   };
 
@@ -112,150 +180,246 @@ function SettingsPage() {
     <AppShell>
       <div className="flex flex-col gap-6 p-6 lg:p-8">
         {/* Header */}
-        <div className="flex items-center gap-4">
-          <Icon name="settings" size={28} className="text-primary" />
-          <div>
-            <h1 className="font-headline-md text-headline-md font-bold text-on-surface">
-              SETTINGS
-            </h1>
-            <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
-              System configuration and delivery preferences
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Icon name="settings" size={28} className="text-primary" />
+            <div>
+              <h1 className="font-headline-md text-headline-md font-bold text-on-surface">
+                Settings
+              </h1>
+              <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
+                Application preferences and configuration
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleReset}
+            className="rounded-lg border border-outline-variant px-4 py-2 font-label-caps text-label-caps text-on-surface-variant transition-colors hover:border-error hover:text-error"
+          >
+            Reset All
+          </button>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="flex items-center gap-3 rounded-lg border border-error/30 bg-error/5 p-4">
-            <Icon name="error" size={20} className="text-error" />
-            <span className="font-body-md text-body-md text-error">{error}</span>
+        {/* Account info */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            ACCOUNT
+          </h2>
+          <div className="clinical-card p-5">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Icon name="account_circle" size={28} className="text-primary" />
+              </div>
+              <div>
+                <p className="font-body-md text-body-md font-medium text-on-surface">
+                  {user?.email}
+                </p>
+                <p className="mt-0.5 font-data-md text-[11px] text-on-surface-variant">
+                  {user?.roles?.join(" · ")}
+                </p>
+              </div>
+            </div>
           </div>
-        )}
+        </section>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-8">
-            {/* Account info */}
-            <section>
-              <h2 className="mb-4 font-label-caps text-label-caps tracking-[0.15em] text-outline">
-                ACCOUNT
-              </h2>
-              <div className="clinical-card p-5">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                    <Icon name="account_circle" size={28} className="text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-body-md text-body-md text-on-surface">
-                      {user?.email}
-                    </p>
-                    <p className="mt-0.5 font-data-md text-[10px] text-on-surface-variant">
-                      {user?.roles?.join(" · ")}
-                    </p>
-                  </div>
+        {/* Appearance */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            APPEARANCE
+          </h2>
+          <div className="clinical-card divide-y divide-outline-variant/30 p-0">
+            {/* Theme */}
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-3">
+                <Icon name="palette" size={20} className="text-primary" />
+                <div>
+                  <p className="font-body-md text-body-md text-on-surface">Theme</p>
+                  <p className="mt-0.5 font-body-sm text-[11px] text-on-surface-variant">
+                    Choose between light and dark mode
+                  </p>
                 </div>
               </div>
-            </section>
-
-            {/* Notification preferences */}
-            <section>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="font-label-caps text-label-caps tracking-[0.15em] text-outline">
-                  NOTIFICATION_CHANNELS
-                </h2>
-                <span className="font-data-md text-[10px] text-on-surface-variant">
-                  Configure how and when alerts reach you
-                </span>
+              <div className="flex gap-2">
+                {(["light", "dark"] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => handleThemeChange(t)}
+                    className={`rounded-lg border px-4 py-2 font-label-caps text-[11px] capitalize transition-all ${
+                      theme === t
+                        ? "border-primary bg-primary/10 font-bold text-primary"
+                        : "border-outline-variant text-on-surface-variant hover:bg-surface-container-high"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="flex flex-col gap-4">
-                {CHANNELS.map((channel) => {
-                  const pref = preferences.find((p) => p.channel === channel);
-                  const enabled = pref?.enabled ?? false;
-                  const minSev = pref?.minSeverity ?? "deviation";
-                  const icon = CHANNEL_ICONS[channel] ?? "notifications";
-
-                  return (
-                    <div key={channel} className="clinical-card p-5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Icon
-                            name={icon}
-                            size={20}
-                            className={enabled ? "text-primary" : "text-on-surface-variant"}
-                          />
-                          <span className="font-label-caps text-label-caps text-on-surface">
-                            {CHANNEL_LABELS[channel] ?? channel}
-                          </span>
-                        </div>
-                        {/* Toggle */}
-                        <button
-                          onClick={() => handleTogglePref(channel)}
-                          className={`relative h-6 w-11 rounded-full transition-colors ${
-                            enabled ? "bg-primary" : "bg-surface-container-high"
-                          }`}
-                        >
-                          <span
-                            className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-on-primary transition-transform ${
-                              enabled ? "translate-x-5" : ""
-                            }`}
-                          />
-                        </button>
-                      </div>
-                      {enabled && (
-                        <div className="mt-4 flex items-center gap-3">
-                          <span className="font-label-caps text-[10px] text-outline">
-                            MIN_SEVERITY:
-                          </span>
-                          <div className="flex gap-1">
-                            {SEVERITIES.map((s) => {
-                              const tone = STATUS_TONE[s];
-                              return (
-                                <button
-                                  key={s}
-                                  onClick={() => handleSeverityChange(channel, s)}
-                                  className={`rounded-md px-2.5 py-0.5 font-label-caps text-[9px] transition-all ${
-                                    minSev === s
-                                      ? `${tone.chip} font-bold`
-                                      : "text-on-surface-variant hover:bg-surface-container-high"
-                                  }`}
-                                >
-                                  {s.toUpperCase()}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Language */}
+            <div className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-3">
+                <Icon name="language" size={20} className="text-primary" />
+                <div>
+                  <p className="font-body-md text-body-md text-on-surface">Language</p>
+                  <p className="mt-0.5 font-body-sm text-[11px] text-on-surface-variant">
+                    Display language for the interface
+                  </p>
+                </div>
               </div>
-
-              {/* Save */}
-              <div className="mt-4 flex items-center gap-4">
-                <button
-                  onClick={handleSavePrefs}
-                  disabled={savingPrefs}
-                  className="flex items-center gap-2 rounded-lg accent-gradient px-6 py-2.5 font-label-caps text-label-caps font-bold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
-                >
-                  <Icon name="save" size={16} />
-                  {savingPrefs ? "SAVING..." : "SAVE_PREFERENCES"}
-                </button>
-                {prefsSaved && (
-                  <span className="flex items-center gap-1.5 font-label-caps text-label-caps text-accent-teal">
-                    <Icon name="check_circle" size={16} />
-                    PREFERENCES_SAVED
-                  </span>
-                )}
-              </div>
-            </section>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-2 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none"
+              >
+                <option>English</option>
+                <option>日本語</option>
+                <option>한국어</option>
+                <option>中文</option>
+              </select>
+            </div>
           </div>
-        )}
+        </section>
+
+        {/* Dashboard */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            DASHBOARD
+          </h2>
+          <div className="clinical-card divide-y divide-outline-variant/30 p-0">
+            {DASHBOARD_TOGGLES.map((item) => (
+              <SettingToggle
+                key={item.key}
+                item={item}
+                value={getValue(item.key, item.defaultValue)}
+                onToggle={() => handleToggle(item.key)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Analytics */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            ANALYTICS
+          </h2>
+          <div className="clinical-card divide-y divide-outline-variant/30 p-0">
+            {ANALYTICS_TOGGLES.map((item) => (
+              <SettingToggle
+                key={item.key}
+                item={item}
+                value={getValue(item.key, item.defaultValue)}
+                onToggle={() => handleToggle(item.key)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Display */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            DISPLAY
+          </h2>
+          <div className="clinical-card divide-y divide-outline-variant/30 p-0">
+            {DISPLAY_TOGGLES.map((item) => (
+              <SettingToggle
+                key={item.key}
+                item={item}
+                value={getValue(item.key, item.defaultValue)}
+                onToggle={() => handleToggle(item.key)}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* System info */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            SYSTEM
+          </h2>
+          <div className="clinical-card p-5">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <InfoItem label="Platform" value="CereBroiler" />
+              <InfoItem label="Version" value="2.4.0" />
+              <InfoItem label="API Status" value="Connected" tone="success" />
+              <InfoItem label="Database" value="PostgreSQL" />
+            </div>
+          </div>
+        </section>
       </div>
     </AppShell>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Sub-components                                                            */
+/* -------------------------------------------------------------------------- */
+
+function SettingToggle({
+  item,
+  value,
+  onToggle,
+}: {
+  item: ToggleSetting;
+  value: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between p-5">
+      <div className="flex items-center gap-3">
+        <Icon
+          name={item.icon}
+          size={20}
+          className={value ? "text-primary" : "text-on-surface-variant"}
+        />
+        <div>
+          <p className="font-body-md text-body-md text-on-surface">{item.label}</p>
+          <p className="mt-0.5 font-body-sm text-[11px] text-on-surface-variant">
+            {item.description}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+          value ? "bg-primary" : "bg-surface-container-high"
+        }`}
+        role="switch"
+        aria-checked={value}
+        aria-label={item.label}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-on-primary shadow-sm transition-transform ${
+            value ? "translate-x-5" : ""
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+function InfoItem({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "success" | "warning" | "error";
+}) {
+  const toneClass = {
+    default: "text-on-surface",
+    success: "text-accent-teal",
+    warning: "text-accent-amber",
+    error: "text-error",
+  }[tone];
+
+  return (
+    <div>
+      <p className="font-label-caps text-[10px] uppercase tracking-widest text-on-surface-variant">
+        {label}
+      </p>
+      <p className={`mt-1 font-data-md text-data-md ${toneClass}`}>{value}</p>
+    </div>
   );
 }

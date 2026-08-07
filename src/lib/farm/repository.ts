@@ -101,8 +101,10 @@ export const getVisualTelemetry = createServerFn({ method: "GET" }).handler(asyn
     behavior: farm.behavior,
     weight: {
       actualAvgG: farm.weight.actualAvgG,
+      standardG: farm.weight.standardG,
       variancePercent: farm.weight.variancePercent,
       estimationConfidencePercent: farm.weight.estimationConfidencePercent,
+      sampleSize: farm.weight.sampleSize,
       status: farm.weight.status,
     },
     cycleDay: farm.cycle.day,
@@ -115,10 +117,9 @@ export const getVisualTelemetry = createServerFn({ method: "GET" }).handler(asyn
 /** Intelligence — the auto-generated monitoring report and its evidence. */
 export const getMonitoringReport = createServerFn({ method: "GET" }).handler(async () => {
   const incident = activeIncident();
-  const nh3Current = readingByCode("NH3_H02");
-  const temperature = readingByCode("TEMP_H04");
-  const humidity = readingByCode("HUMID_H04");
-  const co2 = readingByCode("CO2_H04");
+  const nh3Current = readingByCode("NH3_H01");
+  const temperature = readingByCode("TEMP_H01");
+  const humidity = readingByCode("HUMID_H01");
 
   const findings: ReportFinding[] = [
     {
@@ -158,15 +159,6 @@ export const getMonitoringReport = createServerFn({ method: "GET" }).handler(asy
       status: humidity.status,
     },
     {
-      id: "co2",
-      parameter: "Carbon dioxide CO2",
-      source: `${co2.sensorId} / ${houseLabel(co2.houseId)}`,
-      value: co2.value,
-      unit: co2.unit,
-      boundsLabel: co2.bounds.label,
-      status: co2.status,
-    },
-    {
       id: "weight",
       parameter: "Average bird weight",
       source: `SCALE / ${farm.facility.houseRange}`,
@@ -194,3 +186,43 @@ export const getMonitoringReport = createServerFn({ method: "GET" }).handler(asy
     archive: farm.archive,
   };
 });
+
+/** Alerts — list with optional severity / acknowledged filters. */
+export const getAlerts = createServerFn({ method: "GET" })
+  .handler(async ({ data }) => {
+    const input = (data ?? {}) as { severity?: string; acknowledged?: boolean };
+    return farm.alerts
+      .filter((a) => !input.severity || a.severity === input.severity)
+      .filter((a) => input.acknowledged === undefined || a.acknowledged === input.acknowledged)
+      .map((a) => ({
+        id: a.id,
+        kind: a.kind,
+        severity: a.severity,
+        raisedAt: a.raisedAt,
+        message: a.message,
+        acknowledged: a.acknowledged,
+        acknowledgedAt: a.acknowledgedAt ?? null,
+        sourceIncidentId: a.sourceIncidentId ?? null,
+      }));
+  });
+
+/** Alerts — mark an alert as acknowledged. */
+export const acknowledgeAlertFn = createServerFn({ method: "POST" })
+  .handler(async ({ data }) => {
+    const { id } = (data ?? {}) as { id: string };
+    const alert = farm.alerts.find((a) => a.id === id);
+    if (!alert || alert.acknowledged) return { updated: false, reason: "already_acknowledged_or_missing" };
+    alert.acknowledged = true;
+    alert.acknowledgedAt = new Date().toISOString();
+    return { updated: true, id };
+  });
+
+/** Alerts — dismiss (remove) an alert. */
+export const dismissAlertFn = createServerFn({ method: "POST" })
+  .handler(async ({ data }) => {
+    const { id } = (data ?? {}) as { id: string };
+    const idx = farm.alerts.findIndex((a) => a.id === id);
+    if (idx === -1) return { updated: false, reason: "not_found" };
+    farm.alerts.splice(idx, 1);
+    return { updated: true, id };
+  });

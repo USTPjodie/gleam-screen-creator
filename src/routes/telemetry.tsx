@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
 import { areaPath, linePath, points } from "@/lib/farm/chart";
@@ -18,7 +19,7 @@ import {
 } from "@/lib/farm/format";
 import { getGrowthAnalytics } from "@/lib/farm/repository";
 
-const TITLE = "Growth & Weight Analytics | POULTRY_AI";
+const TITLE = "Growth & Weight Analytics | CereBroiler";
 const DESC =
   "Estimated average weight versus breed standard, flock weight distribution and volumetric mass analysis.";
 
@@ -44,6 +45,29 @@ const VARIANCE_TOLERANCE_PERCENT = 5;
 function TelemetryPage() {
   const { cycle, weight, feed, flockStandardDeviationG, cohorts, volumetric } =
     Route.useLoaderData();
+
+  const [showCalendar, setShowCalendar] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<"realtime" | "historical">("historical");
+
+  const windowStart = new Date(cycle.windowStart);
+  const windowEnd = new Date(cycle.windowEnd);
+  const [calendarMonth, setCalendarMonth] = useState(windowStart.getMonth());
+  const [calendarYear, setCalendarYear] = useState(windowStart.getFullYear());
+
+  // Close calendar when clicking outside
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
+      setShowCalendar(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showCalendar) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showCalendar, handleClickOutside]);
 
   const actual = weight.curve.map((point) => point.actualG);
   const standard = weight.curve.map((point) => point.standardG);
@@ -91,14 +115,96 @@ function TelemetryPage() {
           </h1>
         </div>
         <div className="mt-4 flex gap-4 md:mt-0">
-          <div className="flex items-center gap-2 rounded-lg border border-outline-variant px-3 py-1.5">
-            <Icon name="calendar_today" size={18} className="text-on-surface-variant" />
-            <span className="whitespace-nowrap font-data-md text-data-md">
-              {formatDateRange(cycle.windowStart, cycle.windowEnd)}
-            </span>
+          <div className="relative" ref={calendarRef}>
+            <button
+              onClick={() => setShowCalendar((v) => !v)}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-outline-variant px-3 py-1.5 transition-colors hover:border-primary hover:bg-surface-container-high"
+            >
+              <Icon name="calendar_today" size={18} className="text-on-surface-variant" />
+              <span className="whitespace-nowrap font-data-md text-data-md">
+                {formatDateRange(cycle.windowStart, cycle.windowEnd)}
+              </span>
+              <Icon
+                name="expand_more"
+                size={16}
+                className={`text-on-surface-variant transition-transform ${showCalendar ? "rotate-180" : ""}`}
+              />
+            </button>
+            {showCalendar && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-outline-variant bg-surface-container-lowest shadow-2xl panel-gradient p-4">
+                {/* Month nav */}
+                <div className="mb-3 flex items-center justify-between">
+                  <button
+                    onClick={() => {
+                      if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((y) => y - 1); }
+                      else setCalendarMonth((m) => m - 1);
+                    }}
+                    className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container-high"
+                  >
+                    <Icon name="chevron_left" size={18} />
+                  </button>
+                  <span className="font-label-caps text-label-caps text-on-surface">
+                    {new Date(calendarYear, calendarMonth).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((y) => y + 1); }
+                      else setCalendarMonth((m) => m + 1);
+                    }}
+                    className="rounded-md p-1 text-on-surface-variant hover:bg-surface-container-high"
+                  >
+                    <Icon name="chevron_right" size={18} />
+                  </button>
+                </div>
+                {/* Day headers */}
+                <div className="grid grid-cols-7 gap-0.5 text-center">
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                    <span key={d} className="font-label-caps text-[9px] text-on-surface-variant py-1">{d}</span>
+                  ))}
+                </div>
+                {/* Day grid */}
+                <div className="grid grid-cols-7 gap-0.5 text-center">
+                  {(() => {
+                    const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
+                    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+                    const cells = [];
+                    for (let i = 0; i < firstDay; i++) cells.push(<span key={`e${i}`} />);
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      const date = new Date(calendarYear, calendarMonth, d);
+                      const inRange = date >= new Date(windowStart.getFullYear(), windowStart.getMonth(), windowStart.getDate()) &&
+                                      date <= new Date(windowEnd.getFullYear(), windowEnd.getMonth(), windowEnd.getDate());
+                      const isStart = date.getTime() === new Date(windowStart.getFullYear(), windowStart.getMonth(), windowStart.getDate()).getTime();
+                      const isEnd = date.getTime() === new Date(windowEnd.getFullYear(), windowEnd.getMonth(), windowEnd.getDate()).getTime();
+                      cells.push(
+                        <span
+                          key={d}
+                          className={`flex h-8 w-8 items-center justify-center rounded-md text-[12px] font-data-md ${
+                            isStart || isEnd
+                              ? "bg-primary text-on-primary font-bold"
+                              : inRange
+                                ? "bg-primary/15 text-primary"
+                                : "text-on-surface hover:bg-surface-container-high"
+                          }`}
+                        >
+                          {d}
+                        </span>
+                      );
+                    }
+                    return cells;
+                  })()}
+                </div>
+                {/* Range label */}
+                <div className="mt-3 border-t border-outline-variant pt-2 text-center">
+                  <span className="font-data-md text-[10px] text-on-surface-variant">
+                    {formatDateRange(cycle.windowStart, cycle.windowEnd)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-          <button className="rounded-lg bg-primary px-4 py-1.5 font-label-caps text-label-caps text-on-primary transition-colors hover:bg-on-primary-container">
-            EXPORT_DATA
+          <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-1.5 font-label-caps text-label-caps text-on-primary transition-colors hover:bg-on-primary-container">
+            <Icon name="download" size={16} />
+            Export Data
           </button>
         </div>
       </div>
@@ -125,11 +231,25 @@ function TelemetryPage() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button className="rounded-md border border-outline-variant px-2 py-1 font-label-caps text-[10px] text-on-surface-variant">
+            <div className="flex gap-0">
+              <button
+                onClick={() => setViewMode("realtime")}
+                className={`rounded-l-md border px-3 py-1 font-label-caps text-[10px] transition-all hover:bg-surface-container-high ${
+                  viewMode === "realtime"
+                    ? "border-primary bg-primary/10 font-bold text-primary"
+                    : "border-outline-variant text-on-surface-variant"
+                }`}
+              >
                 REAL_TIME
               </button>
-              <button className="rounded-md border border-primary bg-surface-container-high px-2 py-1 font-label-caps text-[10px] text-primary">
+              <button
+                onClick={() => setViewMode("historical")}
+                className={`rounded-r-md border-y border-r px-3 py-1 font-label-caps text-[10px] transition-all hover:bg-surface-container-high ${
+                  viewMode === "historical"
+                    ? "border-primary bg-primary/10 font-bold text-primary"
+                    : "border-outline-variant text-on-surface-variant"
+                }`}
+              >
                 HISTORICAL
               </button>
             </div>
@@ -373,9 +493,6 @@ function TelemetryPage() {
               </span>
             </div>
           </div>
-          <button className="mt-4 w-full rounded-lg border border-outline-variant py-2 font-label-caps text-[11px] uppercase transition-colors hover:bg-surface-container-high">
-            View Latest High-Res Sample
-          </button>
         </div>
       </div>
       <div className="h-12" />

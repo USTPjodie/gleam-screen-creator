@@ -14,7 +14,7 @@ import {
 } from "@/lib/farm/format";
 import type { StatusLevel } from "@/lib/farm/types";
 
-const TITLE = "Notifications | POULTRY_AI";
+const TITLE = "Notifications | CereBroiler";
 const DESC = "User notification feed — accessible via the bell icon in the top navigation.";
 
 export const Route = createFileRoute("/notifications")({

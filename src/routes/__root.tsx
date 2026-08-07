@@ -78,14 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "POULTRY_AI | FARM_OS" },
+      { title: "CereBroiler | FARM_OS" },
       {
         name: "description",
         content:
           "Clinical operations console for AI-monitored poultry houses: telemetry, visual feeds and intelligence.",
       },
-      { name: "author", content: "POULTRY_AI" },
-      { property: "og:title", content: "POULTRY_AI | FARM_OS" },
+      { name: "author", content: "CereBroiler" },
+      { property: "og:title", content: "CereBroiler | FARM_OS" },
       {
         property: "og:description",
         content:
@@ -111,6 +111,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.png", type: "image/png", sizes: "32x32" },
+      { rel: "apple-touch-icon", href: "/favicon.png", sizes: "180x180" },
     ],
     scripts: [
       {
