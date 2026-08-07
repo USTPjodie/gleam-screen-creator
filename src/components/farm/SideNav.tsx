@@ -88,9 +88,13 @@ export function SideNav({
           </div>
         )}
         {collapsed && <div className="mx-4 mt-6 mb-2 h-px bg-outline-variant" />}
-        <span
+        <Link
+          to="/alerts"
           title={collapsed ? "Alerts" : undefined}
-          className={`${itemClass} cursor-default text-on-surface-variant hover:bg-surface-container-high`}
+          className={`${itemClass} text-on-surface-variant hover:bg-surface-container-high`}
+          activeProps={{
+            className: `${itemClass} nav-active`,
+          }}
         >
           <Icon name="notification_important" size={20} />
           {!collapsed && (
@@ -101,14 +105,18 @@ export function SideNav({
               </span>
             </span>
           )}
-        </span>
-        <span
+        </Link>
+        <Link
+          to="/settings"
           title={collapsed ? "Settings" : undefined}
-          className={`${itemClass} cursor-default text-on-surface-variant hover:bg-surface-container-high`}
+          className={`${itemClass} text-on-surface-variant hover:bg-surface-container-high`}
+          activeProps={{
+            className: `${itemClass} nav-active`,
+          }}
         >
           <Icon name="settings" size={20} />
           {!collapsed && <span className="font-label-caps text-label-caps">Settings</span>}
-        </span>
+        </Link>
       </nav>
       {!collapsed && (
         <div className="p-6">
