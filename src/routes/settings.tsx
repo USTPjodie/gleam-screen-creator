@@ -123,9 +123,50 @@ function persistSettings(settings: Record<string, boolean>) {
 /* -------------------------------------------------------------------------- */
 
 function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [settings, setSettings] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  // Security: active sessions
+  interface SessionRow {
+    id: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+    createdAt: string;
+    refreshExpiresAt: string;
+  }
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch(`${(import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000"}/auth/sessions`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data.sessions);
+      }
+    } catch {
+      setSessionError("Could not load sessions");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  const revokeSession = async (id: string) => {
+    try {
+      const res = await fetch(`${(import.meta as any).env?.VITE_API_URL ?? "http://localhost:4000"}/auth/sessions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setSessions((prev) => prev.filter((s) => s.id !== id));
+      }
+    } catch {
+      setSessionError("Could not revoke session");
+    }
+  };
   const [language, setLanguage] = useState("English");
 
   useEffect(() => {
@@ -218,6 +259,73 @@ function SettingsPage() {
                   {user?.roles?.join(" · ")}
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Security */}
+        <section>
+          <h2 className="mb-3 font-label-caps text-label-caps tracking-[0.15em] text-outline">
+            SECURITY
+          </h2>
+          <div className="clinical-card p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Icon name="verified_user" size={20} className="text-accent-teal" />
+                <div>
+                  <p className="font-body-md text-body-md text-on-surface">Active Sessions</p>
+                  <p className="mt-0.5 font-body-sm text-[11px] text-on-surface-variant">
+                    {sessions.length} active session{sessions.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              </div>
+              {sessions.length > 1 && (
+                <button
+                  onClick={async () => {
+                    for (const s of sessions.slice(1)) await revokeSession(s.id);
+                  }}
+                  className="rounded-lg border border-outline-variant px-3 py-1.5 font-label-caps text-[11px] text-on-surface-variant transition-colors hover:border-error hover:text-error"
+                >
+                  Revoke All Others
+                </button>
+              )}
+            </div>
+            {sessionError && (
+              <p className="mt-2 text-xs text-error">{sessionError}</p>
+            )}
+            <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+              {sessions.slice(0, 5).map((s, i) => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between rounded-lg border border-outline-variant/30 bg-surface-container-lowest/50 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Icon name={i === 0 ? "computer" : "devices"} size={14} className="shrink-0 text-on-surface-variant" />
+                      <p className="truncate font-body-sm text-[11px] text-on-surface">
+                        {s.userAgent ? s.userAgent.slice(0, 50) : "Unknown device"}
+                      </p>
+                    </div>
+                    <p className="mt-0.5 font-data-md text-[10px] text-on-surface-variant">
+                      {s.ipAddress ?? "—"} · since {new Date(s.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                  {i > 0 && (
+                    <button
+                      onClick={() => revokeSession(s.id)}
+                      className="ml-2 shrink-0 rounded p-1 text-on-surface-variant transition-colors hover:text-error"
+                      title="Revoke this session"
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  )}
+                  {i === 0 && (
+                    <span className="ml-2 shrink-0 rounded-full bg-accent-teal/15 px-2 py-0.5 font-data-md text-[9px] text-accent-teal">
+                      Current
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </section>

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireAuth } from "../auth/middleware.js";
+import { requireAuth, requireRole } from "../auth/middleware.js";
 
 /**
  * Incident lifecycle.
@@ -69,7 +69,7 @@ export async function registerIncidentRoutes(app: FastifyInstance) {
     });
   });
 
-  app.patch("/:id", { preHandler: [requireAuth] }, async (request, reply) => {
+  app.patch("/:id", { preHandler: [requireAuth, requireRole("ADMIN", "FARM_MANAGER")] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = patchBody.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid_body", issues: parsed.error.issues });

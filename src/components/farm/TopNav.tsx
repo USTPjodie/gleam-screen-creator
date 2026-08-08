@@ -1,8 +1,16 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { farm, unacknowledgedAlerts } from "@/lib/farm/dataset";
 import { useAuth } from "@/lib/auth-context";
 import { Icon } from "./Icon";
 import { ThemeToggle } from "./ThemeToggle";
+import {
+  type ApiNotification,
+  fetchNotifications,
+  markNotificationRead,
+} from "@/lib/api-client";
+import { STATUS_TONE, formatTime } from "@/lib/farm/format";
+import type { StatusLevel } from "@/lib/farm/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,10 +28,41 @@ const STATUS_LABELS: Record<string, string> = {
   deviation: "Deviation",
 };
 
+const CHANNEL_ICONS: Record<string, string> = {
+  in_app: "notifications",
+  email: "mail",
+  push: "smartphone",
+  sms: "sms",
+};
+
 export function TopNav() {
   const pendingAlerts = unacknowledgedAlerts();
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    fetchNotifications().then(setNotifications).catch(() => {
+      /* ignore */
+    });
+  }, [open]);
+
+  const unreadCount = notifications.filter((n) => !n.readAt).length;
+
+  const handleMarkRead = async (id: string) => {
+    try {
+      const result = await markNotificationRead(id);
+      if (result.updated) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)),
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -43,17 +82,78 @@ export function TopNav() {
         </span>
         <div className="flex gap-2">
           <ThemeToggle />
-          <Link
-            to="/notifications"
-            className="relative rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface"
-          >
-            <Icon name="notifications" />
-            {pendingAlerts > 0 && (
-              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 font-data-md text-[9px] leading-none text-on-error">
-                {pendingAlerts}
-              </span>
-            )}
-          </Link>
+          <DropdownMenu open={open} onOpenChange={setOpen}>
+            <DropdownMenuTrigger asChild>
+              <button className="relative rounded-lg p-2 text-on-surface-variant transition-colors hover:bg-surface-container-highest hover:text-on-surface">
+                <Icon name="notifications" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 font-data-md text-[9px] leading-none text-on-error">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="rounded-full bg-error px-2 py-0.5 text-[10px] text-white">
+                      {unreadCount} unread
+                    </span>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-on-surface-variant">
+                    <Icon name="notifications_none" size={32} />
+                    <span className="mt-2 text-xs">No notifications</span>
+                  </div>
+                ) : (
+                  notifications.map((notif) => {
+                    const sev = notif.severity as StatusLevel;
+                    const tone = STATUS_TONE[sev] ?? STATUS_TONE.nominal;
+                    const isUnread = !notif.readAt;
+                    const channelIcon = CHANNEL_ICONS[notif.channel] ?? "notifications";
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-surface-container ${
+                          isUnread ? "bg-surface-container-low/50" : ""
+                        }`}
+                      >
+                        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${tone.chip}`}>
+                          <Icon name={channelIcon} size={14} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`truncate text-xs ${isUnread ? "font-semibold text-on-surface" : "text-on-surface-variant"}`}>
+                            {notif.title}
+                          </p>
+                          <p className="line-clamp-2 text-[11px] leading-snug text-on-surface-variant">
+                            {notif.body}
+                          </p>
+                          <span className="text-[10px] text-on-surface-variant/70">
+                            {formatTime(notif.createdAt)}
+                          </span>
+                        </div>
+                        {isUnread && (
+                          <button
+                            onClick={() => handleMarkRead(notif.id)}
+                            className="shrink-0 rounded p-1 text-on-surface-variant hover:bg-primary/10 hover:text-primary"
+                            title="Mark as read"
+                          >
+                            <Icon name="done" size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {isAuthenticated ? (
             <DropdownMenu>

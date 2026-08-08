@@ -38,6 +38,10 @@ const schema = z.object({
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be >= 16 bytes"),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(15 * 60),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(30 * 24 * 60 * 60),
+
+  // Vision service (Flask)
+  VISION_SERVICE_URL: z.string().url().default("http://127.0.0.1:5000"),
+  VISION_SERVICE_TOKEN: z.string().default("dev-vision-token-change-in-production"),
 });
 
 const parsed = schema.safeParse(process.env);

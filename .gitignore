@@ -26,6 +26,11 @@ dist-ssr
 /verify-*.png
 package-lock.json
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

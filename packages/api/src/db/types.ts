@@ -1,4 +1,5 @@
 import "fastify";
+import "@fastify/cookie";
 import type { Sql } from "postgres";
 
 /**
@@ -14,7 +15,7 @@ declare module "fastify" {
   }
 }
 
-declare module "fastify/types/request" {
+declare module "fastify" {
   interface FastifyRequest {
     /** Set by the `authenticate` pre-handler when a valid JWT is present. */
     authUser?: {

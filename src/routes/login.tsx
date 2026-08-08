@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, type FormEvent } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, MfaRequiredError, type LoginError } from "@/lib/auth-context";
 import { Icon } from "@/components/farm/Icon";
 
 const TITLE = "Sign In | CereBroiler";
@@ -16,19 +16,26 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, verifyMfa, verifyMfaBackupCode } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attemptsHint, setAttemptsHint] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showContact, setShowContact] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [contactSent, setContactSent] = useState(false);
+
+  // MFA state
+  const [mfaPending, setMfaPending] = useState(false);
+  const [mfaToken, setMfaToken] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
 
   // Already authenticated — redirect to dashboard via effect (not during render).
   useEffect(() => {
@@ -40,19 +47,48 @@ function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setAttemptsHint(null);
     setLoading(true);
     try {
       await login(email, password);
       navigate({ to: "/" });
     } catch (err) {
+      if (err instanceof MfaRequiredError) {
+        setMfaPending(true);
+        return;
+      }
       const code = err instanceof Error ? err.message : "login_failed";
       const messages: Record<string, string> = {
         invalid_credentials: "Invalid email or password.",
         email_taken: "That email is already registered.",
         user_disabled: "This account has been disabled.",
+        account_locked: "This account is temporarily locked.",
         login_failed: "Could not reach the authentication service.",
       };
       setError(messages[code] ?? `Authentication failed (${code}).`);
+      const loginErr = err as LoginError;
+      if (loginErr.attemptsRemaining !== undefined && loginErr.attemptsRemaining >= 0) {
+        setAttemptsHint(`${loginErr.attemptsRemaining} attempt${loginErr.attemptsRemaining === 1 ? "" : "s"} remaining before lockout.`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMfaSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      if (useBackupCode) {
+        await verifyMfaBackupCode(backupCode);
+      } else {
+        await verifyMfa(mfaToken);
+      }
+      navigate({ to: "/" });
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "mfa_failed";
+      setError(code === "invalid_mfa_token" ? "Invalid verification code." : code === "invalid_backup_code" ? "Invalid backup code." : "Verification failed.");
     } finally {
       setLoading(false);
     }
@@ -93,7 +129,9 @@ function LoginPage() {
 
         {/* Sign-in card */}
         <div className="clinical-card p-8">
-          {showContact ? (
+          {mfaPending ? (
+            <></>
+          ) : showContact ? (
             <>
               {contactSent ? (
                 <div className="flex flex-col items-center justify-center gap-2 py-10">
@@ -173,9 +211,16 @@ function LoginPage() {
                 {error && (
                   <div className="flex items-start gap-3 rounded-lg border border-error/30 bg-error-container/40 p-3">
                     <Icon name="error" size={18} className="mt-px shrink-0 text-error" />
-                    <span className="font-body-md text-body-md text-on-error-container">
-                      {error}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-body-md text-body-md text-on-error-container">
+                        {error}
+                      </span>
+                      {attemptsHint && (
+                        <span className="mt-0.5 text-xs text-on-error-container/80">
+                          {attemptsHint}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -258,6 +303,109 @@ function LoginPage() {
                   </button>
                 </p>
               </div>
+            </>
+          )}
+
+          {mfaPending && (
+            <>
+              <div className="mb-6">
+                <h1 className="font-headline-sm text-headline-sm text-on-surface">
+                  Two-Factor Verification
+                </h1>
+                <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
+                  {useBackupCode
+                    ? "Enter a backup code to sign in."
+                    : "Enter the 6-digit code from your authenticator app."}
+                </p>
+              </div>
+
+              <form onSubmit={handleMfaSubmit} className="space-y-5">
+                {error && (
+                  <div className="flex items-start gap-3 rounded-lg border border-error/30 bg-error-container/40 p-3">
+                    <Icon name="error" size={18} className="mt-px shrink-0 text-error" />
+                    <span className="font-body-md text-body-md text-on-error-container">
+                      {error}
+                    </span>
+                  </div>
+                )}
+
+                {useBackupCode ? (
+                  <div className="space-y-1.5">
+                    <label htmlFor="mfa-backup" className="font-label-caps text-label-caps text-on-surface-variant">
+                      BACKUP CODE
+                    </label>
+                    <input
+                      id="mfa-backup"
+                      type="text"
+                      required
+                      autoComplete="off"
+                      value={backupCode}
+                      onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
+                      placeholder="XXXXXXXXXX"
+                      className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2.5 px-4 font-body-md text-body-md text-center tracking-widest text-on-surface transition-colors focus:border-accent-cyan focus:outline-none"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label htmlFor="mfa-token" className="font-label-caps text-label-caps text-on-surface-variant">
+                      VERIFICATION CODE
+                    </label>
+                    <input
+                      id="mfa-token"
+                      type="text"
+                      required
+                      autoComplete="off"
+                      inputMode="numeric"
+                      maxLength={9}
+                      value={mfaToken}
+                      onChange={(e) => setMfaToken(e.target.value.replace(/\D/g, ""))}
+                      placeholder="000000"
+                      className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2.5 px-4 font-body-md text-body-md text-center tracking-widest text-on-surface transition-colors focus:border-accent-cyan focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 font-label-caps text-label-caps text-white accent-gradient transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      VERIFYING...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="verified_user" size={16} />
+                      VERIFY
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between text-xs text-on-surface-variant">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseBackupCode((v) => !v);
+                      setError(null);
+                    }}
+                    className="transition-colors hover:text-primary hover:underline"
+                  >
+                    {useBackupCode ? "Use authenticator app" : "Use backup code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMfaPending(false);
+                      setError(null);
+                    }}
+                    className="transition-colors hover:text-error hover:underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </>
           )}
         </div>

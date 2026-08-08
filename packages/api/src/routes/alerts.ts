@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireAuth } from "../auth/middleware.js";
+import { requireAuth, requireRole } from "../auth/middleware.js";
 
 /**
  * Alert stream + acknowledge/dismiss mutations.
@@ -11,29 +11,50 @@ import { requireAuth } from "../auth/middleware.js";
  * POST   /alerts/:id/dismiss           — soft-close action + audit
  */
 export async function registerAlertRoutes(app: FastifyInstance) {
+  const alertFilterSchema = z.object({
+    severity: z.string().optional(),
+    acknowledged: z.enum(["true", "false"]).optional(),
+    limit: z.coerce.number().int().positive().max(500).default(50),
+  });
+
   app.get("/", { preHandler: [requireAuth] }, async (request, reply) => {
-    const { severity, acknowledged, limit = "50" } = request.query as Record<string, string>;
-    const filters: string[] = [];
-    const params: (string | number | boolean)[] = [];
+    const parsed = alertFilterSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid_query", issues: parsed.error.issues });
+    const { severity, acknowledged, limit } = parsed.data;
+
+    if (severity && acknowledged !== undefined) {
+      const rows = await app.sqlRead`
+        SELECT id, kind, severity, message, raised_at::text AS "raisedAt",
+               acknowledged, acknowledged_at::text AS "acknowledgedAt",
+               source_incident_id AS "sourceIncidentId"
+        FROM alerts
+        WHERE severity = ${severity} AND acknowledged = ${acknowledged === "true"}
+        ORDER BY raised_at DESC LIMIT ${limit}`;
+      return reply.send(rows);
+    }
     if (severity) {
-      params.push(severity);
-      filters.push(`severity = $${params.length}`);
+      const rows = await app.sqlRead`
+        SELECT id, kind, severity, message, raised_at::text AS "raisedAt",
+               acknowledged, acknowledged_at::text AS "acknowledgedAt",
+               source_incident_id AS "sourceIncidentId"
+        FROM alerts WHERE severity = ${severity}
+        ORDER BY raised_at DESC LIMIT ${limit}`;
+      return reply.send(rows);
     }
     if (acknowledged !== undefined) {
-      params.push(acknowledged === "true");
-      filters.push(`acknowledged = $${params.length}`);
+      const rows = await app.sqlRead`
+        SELECT id, kind, severity, message, raised_at::text AS "raisedAt",
+               acknowledged, acknowledged_at::text AS "acknowledgedAt",
+               source_incident_id AS "sourceIncidentId"
+        FROM alerts WHERE acknowledged = ${acknowledged === "true"}
+        ORDER BY raised_at DESC LIMIT ${limit}`;
+      return reply.send(rows);
     }
-    params.push(Number(limit) || 50);
-    const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
-    const rows = await app.sqlRead.unsafe(
-      `SELECT id, kind, severity, message, raised_at AS "raisedAt",
-              acknowledged, acknowledged_at AS "acknowledgedAt",
-              source_incident_id AS "sourceIncidentId"
-       FROM alerts ${where}
-       ORDER BY raised_at DESC
-       LIMIT $${params.length}`,
-      params,
-    );
+    const rows = await app.sqlRead`
+      SELECT id, kind, severity, message, raised_at::text AS "raisedAt",
+             acknowledged, acknowledged_at::text AS "acknowledgedAt",
+             source_incident_id AS "sourceIncidentId"
+      FROM alerts ORDER BY raised_at DESC LIMIT ${limit}`;
     return reply.send(rows);
   });
 
@@ -74,15 +95,13 @@ export async function registerAlertRoutes(app: FastifyInstance) {
     return { updated: true, id };
   };
 
-  app.post("/:id/acknowledge", { preHandler: [requireAuth] }, async (request, reply) => {
+  app.post("/:id/acknowledge", { preHandler: [requireAuth, requireRole("OPERATOR", "FARM_MANAGER", "ADMIN")] }, async (request, reply) => {
     const result = await mutate(app, request, "acknowledge");
     return reply.send(result);
   });
 
-  app.post("/:id/dismiss", { preHandler: [requireAuth] }, async (request, reply) => {
+  app.post("/:id/dismiss", { preHandler: [requireAuth, requireRole("OPERATOR", "FARM_MANAGER", "ADMIN")] }, async (request, reply) => {
     const result = await mutate(app, request, "dismiss");
     return reply.send(result);
   });
 }
-
-void z;

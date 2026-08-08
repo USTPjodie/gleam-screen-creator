@@ -12,11 +12,16 @@ import {
  * The API base URL is read from the Vite env variable `VITE_API_URL`.
  * Falls back to `http://localhost:4000` which matches the default
  * `packages/api` configuration.
+ *
+ * Authentication is now carried in httpOnly, Secure, SameSite=Strict cookies
+ * issued by the API. The frontend never stores tokens in localStorage.
  */
 const API_BASE =
   (typeof import.meta !== "undefined" &&
     (import.meta as any).env?.VITE_API_URL) ||
   "http://localhost:4000";
+
+const fetchOpts: RequestInit = { credentials: "include" };
 
 export interface AuthUser {
   id: string;
@@ -26,11 +31,25 @@ export interface AuthUser {
   permissions: string[];
 }
 
+export class MfaRequiredError extends Error {
+  constructor() {
+    super("mfa_required");
+    this.name = "MfaRequiredError";
+  }
+}
+
+export interface LoginError extends Error {
+  attemptsRemaining?: number;
+  lockedUntil?: string;
+}
+
 interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
+  verifyMfa: (token: string) => Promise<void>;
+  verifyMfaBackupCode: (code: string) => Promise<number>;
   logout: () => Promise<void>;
   refresh: () => Promise<boolean>;
 }
@@ -47,31 +66,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Hydrate from stored token on first mount.
+  // Hydrate from the session cookie on first mount.
   useEffect(() => {
     (async () => {
-      const token = localStorage.getItem("farm_access_token");
-      if (token) {
-        try {
-          const res = await fetch(`${API_BASE}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` },
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, fetchOpts);
+        if (res.ok) {
+          const data = await res.json();
+          setUser({
+            id: data.user.id,
+            email: data.user.email,
+            fullName: data.user.full_name ?? data.user.fullName ?? null,
+            roles: data.roles,
+            permissions: data.permissions,
           });
-          if (res.ok) {
-            const data = await res.json();
-            setUser({
-              id: data.user.id,
-              email: data.user.email,
-              fullName: data.user.full_name ?? data.user.fullName ?? null,
-              roles: data.roles,
-              permissions: data.permissions,
-            });
-          } else {
-            localStorage.removeItem("farm_access_token");
-            localStorage.removeItem("farm_refresh_token");
-          }
-        } catch {
-          // Network down — keep null, the login page will surface the error.
         }
+      } catch {
+        // Network down — keep null, the login page will surface the error.
       }
       setIsLoading(false);
     })();
@@ -81,17 +92,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(
+      const err: LoginError = new Error(
         (body as Record<string, string>).error ?? "login_failed",
       );
+      err.attemptsRemaining = (body as any).attemptsRemaining;
+      err.lockedUntil = (body as any).lockedUntil;
+      throw err;
     }
     const data = await res.json();
-    localStorage.setItem("farm_access_token", data.accessToken);
-    localStorage.setItem("farm_refresh_token", data.refreshToken);
+    if (data.mfaRequired) {
+      throw new MfaRequiredError();
+    }
     setUser({
       id: data.user.id,
       email: data.user.email,
@@ -100,41 +116,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const logout = useCallback(async () => {
-    const token = localStorage.getItem("farm_access_token");
-    if (token) {
-      try {
-        await fetch(`${API_BASE}/auth/logout`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {
-        /* swallow — clean up locally regardless */
-      }
+  const verifyMfa = useCallback(async (token: string) => {
+    const res = await fetch(`${API_BASE}/auth/mfa/login-verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as Record<string, string>).error ?? "mfa_failed");
     }
-    localStorage.removeItem("farm_access_token");
-    localStorage.removeItem("farm_refresh_token");
+    const data = await res.json();
+    setUser({
+      id: data.user.id,
+      email: data.user.email,
+      roles: data.user.roles,
+      permissions: data.user.permissions,
+    });
+  }, []);
+
+  const verifyMfaBackupCode = useCallback(async (code: string): Promise<number> => {
+    const res = await fetch(`${API_BASE}/auth/mfa/backup-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as Record<string, string>).error ?? "invalid_backup_code");
+    }
+    const data = await res.json();
+    setUser({
+      id: data.user.id,
+      email: data.user.email,
+      roles: data.user.roles,
+      permissions: data.user.permissions,
+    });
+    return data.backupCodesRemaining ?? 0;
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      /* swallow — server cookie clearing is best-effort */
+    }
     setUser(null);
   }, []);
 
   const refresh = useCallback(async () => {
-    const refreshToken = localStorage.getItem("farm_refresh_token");
-    if (!refreshToken) return false;
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
+        credentials: "include",
       });
       if (!res.ok) {
-        localStorage.removeItem("farm_access_token");
-        localStorage.removeItem("farm_refresh_token");
         setUser(null);
         return false;
       }
-      const data = await res.json();
-      localStorage.setItem("farm_access_token", data.accessToken);
-      localStorage.setItem("farm_refresh_token", data.refreshToken);
       return true;
     } catch {
       return false;
@@ -142,8 +186,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ user, isLoading, isAuthenticated: user !== null, login, logout, refresh }),
-    [user, isLoading, login, logout, refresh],
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated: user !== null,
+      login,
+      verifyMfa,
+      verifyMfaBackupCode,
+      logout,
+      refresh,
+    }),
+    [user, isLoading, login, verifyMfa, verifyMfaBackupCode, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/farm/AppShell";
 import { Icon } from "@/components/farm/Icon";
@@ -19,6 +19,13 @@ import {
   timelineTicks,
 } from "@/lib/farm/format";
 import { getVisualTelemetry } from "@/lib/farm/repository";
+import {
+  visionStreamUrl,
+  checkVisionHealth,
+  captureImage,
+  analyzeFrame,
+  type VisionHealth,
+} from "@/lib/api-client";
 
 const TITLE = "Visual Telemetry | CereBroiler Live Feeds";
 const DESC =
@@ -69,6 +76,57 @@ function VisualsPage() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [feedLoaded, setFeedLoaded] = useState(false);
   const [feedError, setFeedError] = useState(false);
+  const [visionHealth, setVisionHealth] = useState<VisionHealth | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState<string | null>(null);
+
+  // Poll vision service health every 10s
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const h = await checkVisionHealth();
+        if (!cancelled) setVisionHealth(h);
+      } catch {
+        if (!cancelled) setVisionHealth(null);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 10_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const handleCapture = useCallback(async () => {
+    setCapturing(true);
+    try {
+      const res = await captureImage(camera.id);
+      // Download the JPEG
+      const link = document.createElement("a");
+      link.href = `data:image/jpeg;base64,${res.image}`;
+      link.download = `capture_${camera.id}_${Date.now()}.jpg`;
+      link.click();
+    } catch {
+      /* swallow */
+    } finally {
+      setCapturing(false);
+    }
+  }, [camera.id]);
+
+  const handleAnalyze = useCallback(async () => {
+    setAnalyzing(true);
+    setAnalyzeMsg(null);
+    try {
+      const res = await analyzeFrame(camera.id);
+      setAnalyzeMsg(
+        `Detected ${res.detection_count} birds, ${res.cluster_count} cluster(s) — DB ${res.db_written ? "updated" : "write failed"}`
+      );
+    } catch {
+      setAnalyzeMsg("Analysis failed — vision service may be offline");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [camera.id]);
 
   /** Snap a click position on the timeline to the nearest event. */
   const handleTimelineClick = useCallback(
@@ -124,6 +182,23 @@ function VisualsPage() {
         </div>
         <div className="flex gap-2">
           <button
+            onClick={handleCapture}
+            disabled={capturing}
+            className="rounded-lg border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50"
+            title="Capture a single JPEG frame"
+          >
+            {capturing ? "CAPTURING…" : "SNAPSHOT"}
+          </button>
+          <button
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            className="rounded-lg border border-outline-variant px-3 py-1 font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50"
+            title="Run CV analysis on current frame"
+          >
+            {analyzing ? "ANALYZING…" : "ANALYZE"}
+          </button>
+          <div className="h-4 w-px bg-outline-variant" />
+          <button
             onClick={() => setGridOverlay((on) => !on)}
             className={
               gridOverlay
@@ -156,6 +231,16 @@ function VisualsPage() {
         </div>
       </div>
 
+      {/* Analyze result toast */}
+      {analyzeMsg && (
+        <div className="flex items-center justify-between border-b border-outline-variant/40 bg-surface-container px-6 py-1.5">
+          <span className="font-body-sm text-[11px] text-on-surface-variant">{analyzeMsg}</span>
+          <button onClick={() => setAnalyzeMsg(null)} className="text-on-surface-variant hover:text-on-surface">
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1 overflow-hidden bg-[#070708]">
           {/* CCTV feed image */}
@@ -172,7 +257,7 @@ function VisualsPage() {
             </div>
           )}
           <img
-            src={camera.stillUrl}
+            src={visionStreamUrl(camera.id)}
             alt="High-angle CCTV view of a modern poultry house interior under clinical lighting"
             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${feedLoaded ? "opacity-90" : "opacity-0"}`}
             onLoad={() => setFeedLoaded(true)}
@@ -199,6 +284,15 @@ function VisualsPage() {
                 <Icon name="signal_cellular_alt" size={14} className="text-accent-teal" />
                 <span className="font-label-caps text-[9px] text-accent-teal">SIGNAL</span>
               </span>
+              {visionHealth && (
+                <span className="flex items-center gap-1">
+                  <span className={`h-1.5 w-1.5 rounded-full ${visionHealth.status === "ok" ? "bg-accent-teal" : "bg-warning"}`} />
+                  <span className="font-label-caps text-[9px] text-white/60">VISION</span>
+                  <span className="font-data-md text-[9px] text-white/50">
+                    {visionHealth.cameras_connected}/{visionHealth.cameras_configured}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
           <svg
